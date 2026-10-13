@@ -18,7 +18,9 @@ flowchart LR
 orders within each level. An ID index locates resting orders for cancellation
 without scanning all orders. Submit results include individual matches, so
 multi-level cost accounting uses each executed price rather than the final
-trade price multiplied by the entire quantity. Prices and quantities are
+trade price multiplied by the entire quantity. Each execution fill also records maker/taker classification and explicit fee
+accounting. Exported fill rows reconstruct quantities, notional and total cost.
+Prices and quantities are
 integers; time is virtual nanoseconds. Price validation reserves arithmetic
 headroom. The engine is single-threaded per book.
 

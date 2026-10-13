@@ -3,7 +3,7 @@
 [![Build and reproduce](https://github.com/Ekanshthegreat/Mercury/actions/workflows/ci.yml/badge.svg)](https://github.com/Ekanshthegreat/Mercury/actions/workflows/ci.yml)
 
 A C++20 market-microstructure lab for comparing execution policies and searching
-for synthetic regimes where execution becomes expensive. The CPU MVP runs locally
+for synthetic regimes where execution becomes expensive. The v0.2.0 CPU MVP runs locally
 with no accounts, market-data subscription or external C++ dependencies.
 
 Mercury combines a price-time-priority limit order book, state-dependent order
@@ -48,7 +48,7 @@ experiment and generates `results/reproduction/report.html`.
 | Experiments | One shared external tape per seed/regime; deterministic serial/parallel results |
 | Stress search | Bounded random search of six synthetic parameters, optimizing TWAP CVaR95 |
 | Validation | Separate evaluation seeds and ±10% market-intensity neighbors |
-| Output | Configuration manifest, raw run CSV, summary CSV, decision traces, SVG charts and HTML report |
+| Output | Configuration manifest, run/summary CSV, individual fills, market tapes, decision traces, SVG charts and HTML report |
 
 Example commands:
 
@@ -57,6 +57,7 @@ Example commands:
 ./build/mercury_cli simulate --seed 7 --seconds 60
 ./build/mercury_experiment compare --runs 128 --side sell --workers 4 --out results/sell
 ./build/mercury_experiment stress --runs 128 --candidates 32 --training-runs 32 --workers 4 --out results/stress
+./build/mercury_experiment compare --runs 128 --maker-fee -0.05 --taker-fee 0.15 --out results/fees
 ./build/benchmarks/bench_submit_latency
 ```
 
@@ -86,7 +87,7 @@ build environment alongside it.
 
 ## Engineering checks
 
-There are 52 C++ test cases across five suites and two Python end-to-end checks.
+There are 54 C++ test cases across five suites and three Python end-to-end checks.
 They cover book invariants, randomized reference-model comparisons, deterministic
 simulation, exact fill accounting, passive queue priority, causal policy prefixes,
 residual quantity, serial/parallel equivalence and input validation.
@@ -121,6 +122,12 @@ scripts/             reproduction, report rendering and end-to-end checks
 examples/reference/  measured synthetic results and charts
 ```
 
+Every fill is exported with its time, quantity, price and maker/taker classification.
+The CLI checks reconstruct requested/filled/residual quantities and cost directly
+from exported fills. `--maker-fee` and `--taker-fee` are explicit ticks per filled
+share; negative maker fees model rebates. Defaults are zero and are not a claim
+about any exchange's fee schedule.
+
 ## Model boundaries
 
 The comparison freezes external event times, prices, sizes and cancellation IDs
@@ -132,7 +139,7 @@ The model is not empirically calibrated. Search bounds are explicit synthetic
 assumptions. Policies have a common deadline market-closeout attempt; remaining
 shares are marked at the final valid mid with a 10-tick/share penalty and remain
 reported as unfilled. When a final two-sided mid is unavailable, the arrival mid
-is the documented fallback. Fees, latency, hidden liquidity, adverse-selection
+is the documented fallback. Latency, hidden liquidity, adverse-selection
 markouts and real trading connectivity are outside this release. Prices are in
 ticks around a zero arrival mid, so costs are reported in ticks rather than bps.
 

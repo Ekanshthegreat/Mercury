@@ -44,11 +44,11 @@ Let `Q` be requested quantity, `q` filled quantity, `N` signed-price fill notion
 `−1` for selling, and `P=10` ticks per residual share. Reported cost is:
 
 ```
-[s * (N + (Q-q)*mT - Q*m0) + P*(Q-q)] / Q
+[s * (N + (Q-q)*mT - Q*m0) + P*(Q-q)+ fill_fees] / Q
 ```
 
 This is arrival-relative execution cost with an explicit residual valuation and
-penalty. `filled`, `residual`, `fill_rate` and exact `fill_notional` are exported
+penalty, plus the sum of maker/taker fees on executed shares. `filled`, `residual`, `fill_rate` and exact `fill_notional` are exported
 separately. A lower cost is better. Negative costs are possible for passive fills
 below the arrival mid on buys. With a zero-centered price scale, a bps denominator
 would be invalid, so costs remain in ticks per requested share.
@@ -102,13 +102,23 @@ excitation is also disabled for this experiment.
 
 ## Output contracts
 
-- `manifest.json`: format/engine versions, budgets, seed partitions, execution
+- `manifest.json`: format version 2, engine version,, budgets, seed partitions, execution
   settings and each regime's full model parameters.
-- `runs.csv`: one row per regime, seed and policy, including residual inventory.
+- `runs.csv`: one row per regime, seed and policy, including residual inventory,
+  final mark, whether a final mid was available, and fee notional.
 - `summary.csv`: mean, sampling uncertainty, P95, CVaR95, fill rate and paired costs.
 - `search.csv`: each candidate's parameters and training objective (stress mode).
 - `decisions.csv`: first evaluation seed's decision trace for each policy/regime;
   this is an action trace, not a complete market replay log.
+- `fills.csv`: every execution fill from every exported run: virtual time, quantity,
+  exact price and maker/taker classification. Reconstruct fill notional and fees
+  by grouping on regime/seed/policy. Residual inventory has no fabricated fills.
+- `market_events.csv`: the original market tape for the first evaluation seed in
+  each regime, with event type, IDs, quantities and reference before/after mids.
+  Event types 0–5 are limit bid, limit ask, cancel bid, cancel ask, market buy and
+  market sell. Reference-filled quantity belongs to the policy-independent tape;
+  it may differ from a policy replay's fills. This file does not contain the full
+  market tape for every evaluation seed.
 - `report.html` and `*.svg`: derived views of the CSV data, usable offline.
 - `environment.json` in the committed example: source revision and observed tools.
 
@@ -116,3 +126,17 @@ There is no arbitrary result import or market-data calibration interface in this
 version. Run directory files are replaced when the same output directory is used
 again. Keep distinct directories for comparisons. Generated local `results/`
 are ignored; the reference example is deliberately committed for review.
+
+## Fees and auditability (v0.2.0)
+
+`--maker-fee -0.05 --taker-fee 0.15` charges 0.15 ticks per taker-filled share and
+rebates 0.05 ticks per maker-filled share. Unfilled residual does not incur a fill
+fee. The fee notional is independent of buy/sell direction and is added after
+signed execution cost. Fees do not change policy decisions; they change measured
+cost and, when supplied to stress mode, the search objective. They are not fitted
+exchange charges.
+
+The end-to-end checks reconcile every exported run from fill quantities/prices,
+final marks, residual penalties and fees, including a sell-side fee example.
+The zero-fee v0.2.0 reference retains the v0.1.0 cost results; the new fields make
+those results auditable at the level of individual matches.
