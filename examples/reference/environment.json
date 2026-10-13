@@ -1,0 +1,10 @@
+{
+  "date": "2026-10-12",
+  "source_revision": "b50b2920cbb37455cfdacbb93e3c7d93a30ebcb6",
+  "os": "macOS-26.5-arm64-arm-64bit-Mach-O",
+  "architecture": "arm64",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "cmake": "cmake version 3.31.5",
+  "command": "./build/mercury_experiment stress --out results/reference --runs 128 --candidates 32 --training-runs 32 --workers 4",
+  "build": "Release; MERCURY_WERROR=ON"
+}

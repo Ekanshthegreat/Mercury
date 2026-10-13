@@ -4,7 +4,8 @@
 // ----------------
 // The engine must be *bit-reproducible*: the same seed and the same event
 // stream must produce the same book, the same trades, and the same statistics,
-// on every platform and every standard library. `std::mt19937_64` is specified
+// within a given compiler/platform configuration. Integer draws are portable;
+// floating-point transforms can vary with libm. `std::mt19937_64` is specified
 // by the standard, but `std::uniform_real_distribution` and friends are **not**,
 // so their output differs between libstdc++, libc++, and MSVC. For a project
 // whose entire scientific claim rests on being able to replay an adversarial
@@ -65,8 +66,7 @@ public:
         }
     }
 
-    /// Next 64-bit value. This is xoshiro256**'s output function applied to a
-    /// two-word state advanced by the xoshiro step; deterministic and
+    /// Next 64-bit value. Uses a two-word rotate/xor/add permutation; deterministic and
     /// platform-independent (all arithmetic is unsigned, hence well-defined).
     [[nodiscard]] std::uint64_t next_u64() noexcept {
         const std::uint64_t result = rotl(s0_ + s1_, 17) + s0_;

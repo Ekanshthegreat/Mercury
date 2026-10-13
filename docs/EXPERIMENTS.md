@@ -1,0 +1,118 @@
+# Experiments and interpretation
+
+## Protocol
+
+The reference run is a 2,000-share buy with one-second decisions and a 60-second
+horizon. Search considers 32 candidates, evaluates each on training seeds 7–38
+and selects the highest TWAP CVaR95. Baseline, selected and two neighbors are
+evaluated on 128 holdout seeds 1,000,007–1,000,134. Every policy within a regime
+receives exactly the same external tape for a given seed.
+
+```sh
+./build/mercury_experiment stress --out results/reference --runs 128 --candidates 32 --training-runs 32 --workers 4
+python3 scripts/report.py results/reference
+```
+
+The selected regime has limit rate 15.158, cancel rate 15.677, market rate 9.402,
+flow imbalance −0.235, 603 initial shares per level and mean market size 341.976.
+Full-precision settings are in `examples/reference/manifest.json`. These are
+synthetic parameters, not estimates from an exchange.
+
+## Policy definitions
+
+- **Aggressive:** attempt all remaining quantity immediately; retry outstanding
+  quantity at later decisions if liquidity is insufficient.
+- **TWAP:** target cumulative `floor(Q * min(t + interval, horizon) / horizon)`
+  fills and cross the spread to make up the deficit. This schedules the first
+  slice at time zero.
+- **POV:** target 15% of already observed market-event traded volume from the
+  shared tape, capped at the parent quantity. At the deadline it attempts the
+  common closeout; this may exceed the participation target.
+- **Passive:** quote remaining quantity at the same-side touch, cancelling and
+  repricing each second. Repricing forfeits queue priority.
+- **Adaptive:** use the TWAP target; cross when the spread is at most two ticks
+  or the deficit exceeds 20% of the parent; otherwise quote at the same-side
+  touch. This is a heuristic, not a trained policy.
+
+The experiment includes a same-rule deadline closeout for every policy. It does
+not silently equate incomplete fills with cheap execution.
+
+## Metrics
+
+Let `Q` be requested quantity, `q` filled quantity, `N` signed-price fill notional,
+`m0` arrival mid, `mT` final valid mid (arrival mid fallback), `s=+1` for buying and
+`−1` for selling, and `P=10` ticks per residual share. Reported cost is:
+
+```
+[s * (N + (Q-q)*mT - Q*m0) + P*(Q-q)] / Q
+```
+
+This is arrival-relative execution cost with an explicit residual valuation and
+penalty. `filled`, `residual`, `fill_rate` and exact `fill_notional` are exported
+separately. A lower cost is better. Negative costs are possible for passive fills
+below the arrival mid on buys. With a zero-centered price scale, a bps denominator
+would be invalid, so costs remain in ticks per requested share.
+
+Mean standard error uses sample variance divided by sample count. P95 is the
+nearest-rank empirical quantile. CVaR95 is the highest 5% of ordered costs,
+fractionally weighting the boundary sample. At 128 seeds, its effective tail
+contains only 6.4 observations; it is still noisy and is not a population-risk
+estimate. Paired comparisons against TWAP use the exact same seed/tape and show
+the mean difference plus its standard error. Tail confidence intervals and
+multi-objective policy tuning are outside the MVP.
+
+## What the reference run shows
+
+TWAP mean cost rises from 1.220 to 5.724 ticks/share; its tail average rises from
+4.143 to 15.022. Both market-intensity neighbors retain worse TWAP tail costs than
+the baseline (13.327 and 14.404). The selected regime also has a different initial
+book depth, which changes the aggressive policy's time-zero cost. These are
+comparisons of complete synthetic regimes, not an isolated causal effect of
+one parameter.
+
+Adaptive mean cost is 6.241 in the selected regime, higher than TWAP's 5.724,
+with paired difference 0.517 ± 0.088 standard error. This demonstrates that the
+heuristic does not universally improve execution. Passive execution has cheap,
+fully completed fills in the selected regime but only a 58.49% average fill rate
+in the baseline after closeout. A single policy ranking would hide that tradeoff.
+
+Search is tuned specifically against TWAP, so comparing its training objective
+against other policies is not an unbiased policy selection procedure. Holdout
+seeds reduce seed overfitting, but do not remove model misspecification or the
+synthetic assumptions. Perturbing one parameter is a narrow local check, not a
+complete robustness study.
+
+## Search bounds
+
+| Parameter | Synthetic range |
+| --- | ---: |
+| Limit rate | 2–20 |
+| Cancel rate | 2–16 |
+| Market rate | 1–12 |
+| Flow imbalance | −0.7–0.7 |
+| Initial shares per level | 200–800 (integer) |
+| Mean market order size | 80–400 |
+
+All other parameters retain reference values. Neighbors multiply market rate by
+0.9 or 1.1 and clamp it to the same range. Cancel rates are applied per side;
+market rates scale the geometric re-centered directional legs. These fields
+are model coefficients, not all total event-arrival rates. The reserved legacy
+`impact_ticks_per_unit` field is inactive and excluded from search. Optional
+excitation is also disabled for this experiment.
+
+## Output contracts
+
+- `manifest.json`: format/engine versions, budgets, seed partitions, execution
+  settings and each regime's full model parameters.
+- `runs.csv`: one row per regime, seed and policy, including residual inventory.
+- `summary.csv`: mean, sampling uncertainty, P95, CVaR95, fill rate and paired costs.
+- `search.csv`: each candidate's parameters and training objective (stress mode).
+- `decisions.csv`: first evaluation seed's decision trace for each policy/regime;
+  this is an action trace, not a complete market replay log.
+- `report.html` and `*.svg`: derived views of the CSV data, usable offline.
+- `environment.json` in the committed example: source revision and observed tools.
+
+There is no arbitrary result import or market-data calibration interface in this
+version. Run directory files are replaced when the same output directory is used
+again. Keep distinct directories for comparisons. Generated local `results/`
+are ignored; the reference example is deliberately committed for review.

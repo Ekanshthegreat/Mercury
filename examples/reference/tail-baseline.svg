@@ -15,14 +15,14 @@
 <text x="710.00" y="275" text-anchor="middle" font-size="12" font-family="sans-serif">11.2</text>
 <path d="M195.16,45V250" stroke="#768195"/>
 <text x="128" y="77" text-anchor="end" font-size="13" font-family="sans-serif">adaptive</text>
-<rect x="195.16" y="60" width="230.94" height="24" fill="#365d86"/>
+<rect x="195.16" y="60" width="176.74" height="24" fill="#365d86"/>
 <text x="128" y="115" text-anchor="end" font-size="13" font-family="sans-serif">aggressive</text>
 <rect x="195.16" y="98" width="114.92" height="24" fill="#365d86"/>
 <text x="128" y="153" text-anchor="end" font-size="13" font-family="sans-serif">passive</text>
 <rect x="195.16" y="136" width="459.68" height="24" fill="#365d86"/>
 <text x="128" y="191" text-anchor="end" font-size="13" font-family="sans-serif">pov</text>
-<rect x="195.16" y="174" width="225.97" height="24" fill="#365d86"/>
+<rect x="195.16" y="174" width="184.79" height="24" fill="#365d86"/>
 <text x="128" y="229" text-anchor="end" font-size="13" font-family="sans-serif">twap</text>
-<rect x="195.16" y="212" width="246.02" height="24" fill="#365d86"/>
+<rect x="195.16" y="212" width="190.43" height="24" fill="#365d86"/>
 <text x="425" y="295" text-anchor="middle" font-size="12" font-family="sans-serif">Cost: ticks per parent-order share; lower is better</text>
 </svg>
