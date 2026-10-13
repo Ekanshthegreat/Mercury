@@ -17,3 +17,5 @@ endfunction()
 mercury_add_test(test_order_book)
 mercury_add_test(test_order_book_property)
 mercury_add_test(test_simulation)
+
+mercury_add_test(test_execution)

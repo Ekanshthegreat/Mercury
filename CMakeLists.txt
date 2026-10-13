@@ -55,6 +55,7 @@ find_package(Threads REQUIRED)
 add_library(mercury_engine
     engine/book/order_book.cpp
     engine/simulation/market_simulator.cpp
+    engine/execution/execution.cpp
 )
 
 target_include_directories(mercury_engine PUBLIC
