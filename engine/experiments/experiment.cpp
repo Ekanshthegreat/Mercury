@@ -29,7 +29,8 @@ std::vector<Trial> compare_policies(const ModelParams& params, const ExecutionCo
                 const auto tape = generate_tape(params, seed, config.horizon);
                 for (std::size_t j = 0; j < 5; ++j)
                     results[i * 5 + j] = {seed, policies[j],
-                                          replay_execution(tape, policies[j], config)};
+                                          replay_execution(tape, policies[j], config),
+                                          i == 0 && j == 0 ? tape.events : std::vector<SimEvent>{}};
             }
         } catch (...) {
             std::lock_guard<std::mutex> lock(mutex);

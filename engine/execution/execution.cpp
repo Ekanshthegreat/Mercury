@@ -10,8 +10,9 @@ void validate(const ExecutionConfig& c) {
     if (c.quantity <= 0 || c.quantity > 1'000'000'000 || c.horizon <= 0 ||
         c.horizon > 3600'000'000'000LL || c.interval <= 0 || c.interval > c.horizon ||
         c.horizon / c.interval > 100000 || !std::isfinite(c.participation) ||
-        c.participation <= 0 || c.participation > 1 || !std::isfinite(c.residual_penalty) ||
-        c.residual_penalty < 0)
+        c.participation <= 0 || c.participation > 1 || !std::isfinite(c.maker_fee) ||
+        std::abs(c.maker_fee) > 1000 || !std::isfinite(c.taker_fee) || c.taker_fee < 0 ||
+        c.taker_fee > 1000 || !std::isfinite(c.residual_penalty) || c.residual_penalty < 0)
         throw std::invalid_argument("Invalid execution configuration");
 }
 }  // namespace
@@ -100,6 +101,10 @@ ExecutionResult replay_execution(const MarketTape& tape, Policy policy, const Ex
     auto account = [&](const SubmitResult& submitted) {
         for (const auto& t : submitted.trades) {
             if (t.aggressor >= algo_base || t.passive >= algo_base) {
+                const bool passive = t.passive >= algo_base;
+                result.fills.push_back({t.time, t.quantity, t.price, passive});
+                result.fee_notional +=
+                    static_cast<double>(t.quantity) * (passive ? c.maker_fee : c.taker_fee);
                 result.filled += t.quantity;
                 result.fill_notional +=
                     static_cast<double>(t.quantity) * static_cast<double>(t.price);
@@ -149,11 +154,13 @@ ExecutionResult replay_execution(const MarketTape& tape, Policy policy, const Ex
     const double sign = c.side == Side::Buy ? 1.0 : -1.0;
     // Residual is marked, not reported as a fill; fallback is the arrival mid
     // if a one-sided book prevents observing a valid final mid.
+    result.final_mid_available = book.mid_price().has_value();
     const double mark = book.mid_price().value_or(result.arrival_mid);
+    result.final_mark = mark;
     result.cost_ticks =
         (sign * (result.fill_notional + mark * static_cast<double>(result.residual) -
                  result.arrival_mid * static_cast<double>(c.quantity)) +
-         c.residual_penalty * static_cast<double>(result.residual)) /
+         c.residual_penalty * static_cast<double>(result.residual) + result.fee_notional) /
         static_cast<double>(c.quantity);
     return result;
 }

@@ -99,4 +99,39 @@ MERCURY_TEST(invalid_config_and_tape_are_rejected) {
     t.events.push_back({-1, EventType::LimitBid, 99, -1, 50, 0, 0, 0});
     MERCURY_CHECK_THROWS(replay_execution(t, Policy::Twap, config()));
 }
+MERCURY_TEST(fill_trace_reconstructs_quantity_notional_and_liquidity) {
+    auto tape = empty_tape();
+    tape.events.push_back({second / 2, EventType::MarketSell, 100, kNoPrice, 550, 550, 0, 0});
+    const auto r = replay_execution(tape, Policy::Passive, config());
+    Quantity quantity = 0, passive = 0;
+    double notional = 0;
+    Timestamp previous = 0;
+    for (const auto& fill : r.fills) {
+        quantity += fill.quantity;
+        notional += static_cast<double>(fill.quantity) * static_cast<double>(fill.price);
+        if (fill.passive) passive += fill.quantity;
+        MERCURY_CHECK(fill.time >= previous && fill.time <= config().horizon);
+        previous = fill.time;
+    }
+    MERCURY_CHECK_EQ(quantity, r.filled);
+    MERCURY_CHECK_EQ(notional, r.fill_notional);
+    MERCURY_CHECK_EQ(passive, 50);
+}
+MERCURY_TEST(fees_apply_to_executed_shares_and_rebates_have_correct_sign) {
+    auto tape = empty_tape();
+    tape.events.push_back({second / 2, EventType::MarketSell, 100, kNoPrice, 550, 550, 0, 0});
+    auto c = config();
+    c.maker_fee = -0.5;
+    c.taker_fee = 1;
+    const auto base = replay_execution(tape, Policy::Passive, config());
+    const auto charged = replay_execution(tape, Policy::Passive, c);
+    MERCURY_CHECK_EQ(charged.fee_notional, 525.0);
+    MERCURY_CHECK(std::abs(charged.cost_ticks - base.cost_ticks - 525.0 / 600.0) < 1e-12);
+    c.quantity = 2000;
+    c.taker_fee = 1;
+    c.maker_fee = 0;
+    const auto partial = replay_execution(empty_tape(), Policy::Aggressive, c);
+    MERCURY_CHECK_EQ(partial.fee_notional, 1000.0);
+    MERCURY_CHECK_EQ(partial.residual, 1000);
+}
 MERCURY_MAIN()

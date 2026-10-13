@@ -12,6 +12,8 @@ struct ExecutionConfig {
     Timestamp horizon{60'000'000'000LL};
     Timestamp interval{1'000'000'000LL};
     double participation{0.15};
+    double maker_fee{0.0};  // ticks per filled share; negative values model rebates
+    double taker_fee{0.0};
     double residual_penalty{10.0};  // ticks per unfilled share at deadline
 };
 struct Observation {
@@ -30,9 +32,18 @@ struct Action {
     Decision decision;
     Quantity filled_before{};
 };
+struct ExecutionFill {
+    Timestamp time{};
+    Quantity quantity{};
+    Price price{};
+    bool passive{};
+};
 struct ExecutionResult {
     Quantity requested{}, filled{}, residual{};
     double arrival_mid{}, fill_notional{}, fill_rate{}, cost_ticks{};
+    double final_mark{}, fee_notional{};
+    bool final_mid_available{};
+    std::vector<ExecutionFill> fills;
     std::vector<Action> actions;
 };
 struct MarketTape {

@@ -8,6 +8,7 @@ struct Trial {
     std::uint64_t seed{};
     Policy policy{};
     ExecutionResult result;
+    std::vector<SimEvent> external_events;  // first seed/first policy only, for audit exports
 };
 std::vector<Trial> compare_policies(const ModelParams& params, const ExecutionConfig& config,
                                     std::uint64_t first_seed, std::size_t runs,

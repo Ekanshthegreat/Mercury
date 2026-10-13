@@ -24,6 +24,13 @@ std::uint64_t integer(const std::string& text, std::uint64_t lo, std::uint64_t h
         throw std::invalid_argument("Invalid numeric option: " + text);
     return n;
 }
+double fee(const std::string& text, double minimum) {
+    std::size_t used{};
+    const double value = std::stod(text, &used);
+    if (used != text.size() || !std::isfinite(value) || value < minimum || value > 1000)
+        throw std::invalid_argument("Invalid fee: " + text);
+    return value;
+}
 void usage() {
     std::cout
         << "Mercury experiment runner " << MERCURY_VERSION
@@ -32,7 +39,7 @@ void usage() {
            "  --out DIRECTORY  --runs 2..1000  --seed 0..1000000000\n"
            "  --seconds 1..300 --quantity 1..1000000 --workers 1..32\n"
            "  --candidates 1..100 --training-runs 2..256 (stress only)\n"
-           "  --side buy|sell\n"
+           "  --side buy|sell --maker-fee TICKS --taker-fee TICKS\n"
            "Outputs run/summary CSV, full configuration JSON and decision traces.\n"
            "Stress optimizes TWAP CVaR95 on training seeds, evaluates separate holdout seeds.\n";
 }
@@ -90,6 +97,10 @@ int main(int argc, char** argv) {
                 o.candidates = integer(value, 1, 100);
             else if (key == "--training-runs" && mode == "stress")
                 o.training = integer(value, 2, 256);
+            else if (key == "--maker-fee")
+                o.execution.maker_fee = fee(value, -1000);
+            else if (key == "--taker-fee")
+                o.execution.taker_fee = fee(value, 0);
             else if (key == "--side") {
                 if (value != "buy" && value != "sell")
                     throw std::invalid_argument("Side must be buy or sell");
@@ -122,7 +133,7 @@ int main(int argc, char** argv) {
         }
         const auto first_seed = mode == "stress" ? o.seed + 1'000'000 : o.seed;
         auto manifest = file(root / "manifest.json");
-        manifest << "{\n\"format_version\":1,\"engine_version\":\"" << MERCURY_VERSION
+        manifest << "{\n\"format_version\":2,\"engine_version\":\"" << MERCURY_VERSION
                  << "\",\"mode\":\"" << mode << "\",\"seed\":" << o.seed
                  << ",\"first_evaluation_seed\":" << first_seed << ",\"runs\":" << o.runs
                  << ",\"workers\":" << o.workers
@@ -134,15 +145,21 @@ int main(int argc, char** argv) {
                  << ",\"horizon_ns\":" << o.execution.horizon
                  << ",\"interval_ns\":" << o.execution.interval
                  << ",\"participation\":" << o.execution.participation
+                 << ",\"maker_fee_ticks\":" << o.execution.maker_fee
+                 << ",\"taker_fee_ticks\":" << o.execution.taker_fee
                  << ",\"residual_penalty_ticks\":" << o.execution.residual_penalty
                  << "},\n\"regimes\":{\n";
         auto runs = file(root / "runs.csv"), summary = file(root / "summary.csv"),
-             traces = file(root / "decisions.csv");
+             traces = file(root / "decisions.csv"), fill_output = file(root / "fills.csv"),
+             market = file(root / "market_events.csv");
         runs << "regime,seed,policy,requested,filled,residual,fill_rate,fill_notional,arrival_mid,"
-                "cost_ticks\n";
+                "cost_ticks,final_mark,final_mid_available,fee_notional\n";
         summary << "regime,policy,runs,mean_ticks,standard_error_ticks,p95_ticks,cvar95_ticks,mean_"
                    "fill_rate,paired_mean_vs_twap,paired_se_vs_twap\n";
         traces << "regime,seed,policy,time_ns,filled_before,submitted_quantity,market,price\n";
+        fill_output << "regime,seed,policy,time_ns,quantity,price,liquidity\n";
+        market << "regime,seed,time_ns,type,order_id,price,quantity,reference_filled,mid_before,"
+                  "mid_after\n";
         for (std::size_t index = 0; index < regimes.size(); ++index) {
             const auto& [name, params] = regimes[index];
             if (index) manifest << ",\n";
@@ -157,7 +174,18 @@ int main(int argc, char** argv) {
                 const std::string policy(policy_name(t.policy));
                 runs << name << ',' << t.seed << ',' << policy << ',' << r.requested << ','
                      << r.filled << ',' << r.residual << ',' << r.fill_rate << ','
-                     << r.fill_notional << ',' << r.arrival_mid << ',' << r.cost_ticks << '\n';
+                     << r.fill_notional << ',' << r.arrival_mid << ',' << r.cost_ticks << ','
+                     << r.final_mark << ',' << r.final_mid_available << ',' << r.fee_notional
+                     << '\n';
+                for (const auto& fill : r.fills)
+                    fill_output << name << ',' << t.seed << ',' << policy << ',' << fill.time << ','
+                                << fill.quantity << ',' << fill.price << ','
+                                << (fill.passive ? "maker" : "taker") << '\n';
+                for (const auto& event : t.external_events)
+                    market << name << ',' << t.seed << ',' << event.t << ','
+                           << static_cast<int>(event.type) << ',' << event.order_id << ','
+                           << event.price << ',' << event.quantity << ',' << event.filled << ','
+                           << event.mid_before << ',' << event.mid_after << '\n';
                 costs[policy].push_back(r.cost_ticks);
                 fills[policy].push_back(r.fill_rate);
                 differences[policy].push_back(r.cost_ticks -
