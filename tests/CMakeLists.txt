@@ -19,3 +19,5 @@ mercury_add_test(test_order_book_property)
 mercury_add_test(test_simulation)
 
 mercury_add_test(test_execution)
+
+mercury_add_test(test_experiments)

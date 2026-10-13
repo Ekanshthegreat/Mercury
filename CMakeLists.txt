@@ -56,6 +56,7 @@ add_library(mercury_engine
     engine/book/order_book.cpp
     engine/simulation/market_simulator.cpp
     engine/execution/execution.cpp
+    engine/experiments/experiment.cpp
 )
 
 target_include_directories(mercury_engine PUBLIC
