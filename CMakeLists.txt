@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 
 project(Mercury
     VERSION 0.1.0
@@ -21,8 +21,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(MERCURY_BUILD_TESTS "Build Mercury tests" ON)
 option(MERCURY_BUILD_BENCHMARKS "Build Mercury benchmarks" ON)
-option(MERCURY_BUILD_PYTHON "Build Python bindings (requires pybind11)" OFF)
-option(MERCURY_ENABLE_CUDA "Enable the CUDA backend if a toolkit is present" OFF)
+option(MERCURY_BUILD_PYTHON "Reserved: Python bindings are not implemented" OFF)
+option(MERCURY_ENABLE_CUDA "Reserved: CUDA backend is not implemented" OFF)
 option(MERCURY_ENABLE_SANITIZERS "Build with ASan/UBSan" OFF)
 option(MERCURY_WERROR "Treat warnings as errors" OFF)
 

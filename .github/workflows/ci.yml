@@ -1,0 +1,39 @@
+name: Build and reproduce
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Release, Debug]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DMERCURY_WERROR=ON
+          -DMERCURY_ENABLE_SANITIZERS=${{ matrix.build_type == 'Debug' && 'ON' || 'OFF' }}
+      - run: cmake --build build --parallel 4
+      - run: ctest --test-dir build --output-on-failure
+      - run: python3 scripts/check_cli.py build
+      - name: Reproduce report
+        if: matrix.build_type == 'Release'
+        run: |
+          ./build/mercury_experiment stress --out results/ci --runs 128 --candidates 32 --training-runs 32 --workers 4
+          python3 scripts/report.py results/ci
+      - uses: actions/upload-artifact@v4
+        if: matrix.build_type == 'Release'
+        with:
+          name: stress-report-${{ matrix.os }}
+          path: results/ci/

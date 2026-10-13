@@ -27,5 +27,9 @@ echo "== tests =="
 
 echo "== engine smoke check =="
 "${BUILD_DIR}/mercury_engine_check"
+python3 "${PROJECT_ROOT}/scripts/check_cli.py" "${BUILD_DIR}"
+RESULT_DIR="${PROJECT_ROOT}/results/reproduction"
+"${BUILD_DIR}/mercury_experiment" stress --out "${RESULT_DIR}" --runs 128 --candidates 32 --training-runs 32 --workers 4
+python3 "${PROJECT_ROOT}/scripts/report.py" "${RESULT_DIR}"
 
 echo "== OK =="

@@ -1,0 +1,9 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {"name":"release","displayName":"Release with strict warnings","generator":"Unix Makefiles","binaryDir":"${sourceDir}/build-release","cacheVariables":{"CMAKE_BUILD_TYPE":"Release","MERCURY_WERROR":"ON"}},
+    {"name":"sanitize","inherits":"release","displayName":"Debug with address and undefined-behavior sanitizers","binaryDir":"${sourceDir}/build-sanitize","cacheVariables":{"CMAKE_BUILD_TYPE":"Debug","MERCURY_ENABLE_SANITIZERS":"ON"}}
+  ],
+  "buildPresets":[{"name":"release","configurePreset":"release"},{"name":"sanitize","configurePreset":"sanitize"}],
+  "testPresets":[{"name":"release","configurePreset":"release","output":{"outputOnFailure":true}},{"name":"sanitize","configurePreset":"sanitize","output":{"outputOnFailure":true}}]
+}
