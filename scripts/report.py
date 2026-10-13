@@ -82,12 +82,12 @@ def render(directory):
     count = manifest['runs']
     training = manifest['training_runs']
     mode = manifest['mode']
-    page += f'<div class="controls"><label for="regime">Market regime</label><select id="regime">{"".join(options)}</select><p>{count} evaluation seeds per regime · {manifest["execution"]["quantity"]:,} shares · {manifest["execution"]["horizon_ns"]/1e9:g} virtual seconds · {mode} run</p></div>'
+    page += f'<div class="controls"><label for="regime">Market regime</label><select id="regime">{"".join(options)}</select><p>{count} evaluation seeds per regime · {manifest["execution"]["quantity"]:,} shares · {manifest["execution"]["horizon_ns"]/1e9:g} virtual seconds · {mode} run · maker fee {manifest["execution"].get("maker_fee_ticks",0):g} · taker fee {manifest["execution"].get("taker_fee_ticks",0):g} ticks/share</p></div>'
     page += ''.join(panels)
     page += f'''<aside class="notes"><h2>Read the comparison</h2><p>Mean error bars show one sample standard error. Δ vs TWAP uses paired seed differences; a negative number means lower cost. Tail estimates from {count} seeds are noisy: the worst 5% spans only {count*.05:g} observations, with fractional boundary weighting.</p>
 <p>Search uses {manifest['candidates']} candidates and {training} training seeds per candidate. Evaluation starts at seed {manifest['first_evaluation_seed']}; search and evaluation seeds are disjoint for stress runs. Neighbors change only market-order intensity by ±10% within the search bounds.</p>
-<p>External event times, prices, quantities and cancellation IDs are frozen before execution. Policy orders affect replayed queues and fills, but do not change external arrival rates. No empirical calibration, price prediction, live trading, fees or GPU performance is claimed.</p>
-<p><a href="runs.csv">Raw runs</a> · <a href="summary.csv">Summary</a> · <a href="decisions.csv">First-seed decisions</a> · <a href="manifest.json">Configuration</a></p>
+<p>External event times, prices, quantities and cancellation IDs are frozen before execution. Policy orders affect replayed queues and fills, but do not change external arrival rates. Fees are explicit per-filled-share inputs, not calibrated exchange schedules. No empirical calibration, price prediction, live trading or GPU performance is claimed.</p>
+<p><a href="runs.csv">Raw runs</a> · <a href="summary.csv">Summary</a> · <a href="decisions.csv">First-seed decisions</a> · <a href="fills.csv">Individual fills</a> · <a href="market_events.csv">First-seed market events</a> · <a href="manifest.json">Configuration</a></p>
 <details><summary>Full configuration</summary><pre>{html.escape(json.dumps(manifest,indent=2))}</pre></details></aside>
 </main><script>document.querySelector('#regime').addEventListener('change',e=>{{document.querySelectorAll('.regime').forEach(p=>{{p.hidden=p.dataset.index!==e.target.value;}});}});</script></html>'''
     (directory / 'report.html').write_text(page)
