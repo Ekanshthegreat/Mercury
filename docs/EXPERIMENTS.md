@@ -44,7 +44,7 @@ Let `Q` be requested quantity, `q` filled quantity, `N` signed-price fill notion
 `−1` for selling, and `P=10` ticks per residual share. Reported cost is:
 
 ```
-[s * (N + (Q-q)*mT - Q*m0) + P*(Q-q)+ fill_fees] / Q
+[s * (N + (Q-q)*mT - Q*m0) + P*(Q-q) + fill_fees] / Q
 ```
 
 This is arrival-relative execution cost with an explicit residual valuation and
@@ -102,7 +102,7 @@ excitation is also disabled for this experiment.
 
 ## Output contracts
 
-- `manifest.json`: format version 2, engine version,, budgets, seed partitions, execution
+- `manifest.json`: format version 2, engine version, budgets, seed partitions, execution
   settings and each regime's full model parameters.
 - `runs.csv`: one row per regime, seed and policy, including residual inventory,
   final mark, whether a final mid was available, and fee notional.
