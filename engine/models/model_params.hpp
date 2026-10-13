@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 
 #include "engine/core/types.hpp"
 
@@ -143,6 +144,17 @@ struct ModelParams {
     /// producing nonsense (for example a negative rate or an unstable Hawkes
     /// kernel with alpha >= beta).
     [[nodiscard]] bool is_valid() const noexcept {
+        const double values[] = {limit_rate, cancel_rate, market_rate,
+            cancel_imbalance_sensitivity, market_imbalance_sensitivity,
+            limit_spread_sensitivity, flow_imbalance, impact_ticks_per_unit,
+            hawkes_alpha, hawkes_beta, mean_limit_size, mean_market_size, tick_size};
+        for (double value : values) if (!std::isfinite(value)) return false;
+        if (cancel_imbalance_sensitivity < 0 || limit_spread_sensitivity < 0 || tick_size <= 0) return false;
+        // Resource bounds also prevent float-to-integer overflow in event generation.
+        if (limit_rate > 10000 || cancel_rate > 10000 || market_rate > 10000 ||
+            mean_limit_size > 1000000 || mean_market_size > 1000000 ||
+            initial_depth_levels > 1000 || initial_level_size > 1000000000 ||
+            initial_half_spread > 1000000000 || hawkes_beta > 1000000) return false;
         if (limit_rate < 0.0 || cancel_rate < 0.0 || market_rate < 0.0) return false;
         if (limit_rate + cancel_rate + market_rate <= 0.0) return false;
         if (mean_limit_size <= 0.0 || mean_market_size <= 0.0) return false;

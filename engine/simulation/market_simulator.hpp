@@ -9,26 +9,17 @@
 //
 // Event timing
 // ------------
-// With baseline rates \f$\lambda_i\f$ and a state-dependent multiplier
-// \f$m_i(\text{state})\f$, the next event is drawn from a non-homogeneous
-// Poisson process. We use the standard thinning approach:
-//
-//   1. compute the current total intensity \f$\Lambda = \sum_i \lambda_i m_i\f$
-//      (including any Hawkes excitation),
-//   2. draw the waiting time \f$\tau \sim \text{Exp}(\Lambda)\f$,
-//   3. choose the event type \f$i\f$ with probability \f$\lambda_i m_i / \Lambda\f$.
-//
-// Because the state changes only at event times, the intensity is piecewise
-// constant and the exponential draw between events is exact — no discretisation
-// bias. (Hawkes excitation is folded into \f$\Lambda\f$ at the moment of the
-// draw, which makes the process a Markov-modulated approximation of a true
-// Hawkes process; this is documented as a modelling choice, not hidden.)
+// Event rates are computed from the current book, then an exponential waiting
+// time and an intensity-weighted event type are sampled. This is exact for
+// piecewise-constant rates without excitation. The optional decaying excitation
+// is frozen at each draw, an approximation rather than a thinning sampler.
+// Repeated runs are deterministic within a compiler/platform configuration;
+// floating-point log/exp implementations can differ across platforms.
 //
 // Determinism
 // -----------
 // The simulator holds one `Rng`. Given the same `ModelParams` and seed it
-// produces *exactly* the same sequence of events, times, and fills, on any
-// platform, because all randomness flows through `Rng` (see util/rng.hpp).
+// produces *exactly* the same sequence of events, times, and fills, within a build, because all randomness flows through `Rng` (see util/rng.hpp).
 // Nothing here reads wall time.
 
 #pragma once

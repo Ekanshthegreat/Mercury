@@ -59,15 +59,6 @@ struct Order {
     bool in_book{false};                ///< false once filled/cancelled/never rested
 };
 
-/// Outcome of a single submission, reported back to the caller for accounting.
-struct SubmitResult {
-    OrderId id{kInvalidOrderId};
-    Quantity filled{0};                 ///< total shares matched on arrival
-    Quantity resting{0};                ///< shares left in the book (0 for Market/IOC)
-    OrderStatus status{OrderStatus::Rejected};
-    Price last_trade_price{kInvalidPrice};
-};
-
 /// One executed match. Emitted in price-time order as a submission walks the
 /// opposite side of the book.
 struct Trade {
@@ -77,6 +68,16 @@ struct Trade {
     Price price{kInvalidPrice};
     Quantity quantity{0};
     Timestamp time{0};
+};
+
+/// Outcome of a single submission, reported back to the caller for accounting.
+struct SubmitResult {
+    OrderId id{kInvalidOrderId};
+    Quantity filled{0};                 ///< total shares matched on arrival
+    Quantity resting{0};                ///< shares left in the book (0 for Market/IOC)
+    OrderStatus status{OrderStatus::Rejected};
+    std::vector<Trade> trades;
+    Price last_trade_price{kInvalidPrice};
 };
 
 /// A single aggregate price level, as reported by top-of-book helpers.

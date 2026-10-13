@@ -70,9 +70,8 @@ SubmitResult OrderBook::submit_limit(Side side, Price price, Quantity quantity,
     // An empty opposite side means nothing can cross; rest immediately.
     if (const auto best = best_price_unlocked(opposite(side)); best.has_value()) {
         if (crosses(side, price, *best)) {
-            std::vector<Trade> trades;
-            match_against(order, &trades);
-            for (const Trade& t : trades) {
+            match_against(order, &result.trades);
+            for (const Trade& t : result.trades) {
                 result.filled += t.quantity;
                 result.last_trade_price = t.price;
             }
@@ -130,9 +129,8 @@ SubmitResult OrderBook::submit_market(Side side, Quantity quantity,
     order.remaining = quantity;
     order.arrival = time;
 
-    std::vector<Trade> trades;
-    match_against(order, &trades);
-    for (const Trade& t : trades) {
+    match_against(order, &result.trades);
+    for (const Trade& t : result.trades) {
         result.filled += t.quantity;
         result.last_trade_price = t.price;
     }

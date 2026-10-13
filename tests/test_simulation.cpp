@@ -325,7 +325,7 @@ MERCURY_TEST(time_is_monotonic_and_within_horizon) {
         (void)prev_mid_changes;
         if (sim.stats().event_count > 100000) break;  // safety valve
     }
-    MERCURY_CHECK(sim.now() >= c.horizon);
+    MERCURY_CHECK(sim.now() == c.horizon);
     MERCURY_CHECK(sim.stats().event_count > 0);
 }
 
@@ -383,4 +383,18 @@ MERCURY_TEST(hawkes_increases_event_clustering) {
     MERCURY_CHECK(d_hawkes >= d_poisson * 0.9);
 }
 
+MERCURY_TEST(rejects_nonfinite_parameters) {
+    auto c = make_config(1);
+    c.params.limit_rate = std::numeric_limits<double>::quiet_NaN();
+    MERCURY_CHECK_THROWS(MarketSimulator{c});
+    c.params.limit_rate = 1;
+    c.params.mean_limit_size = std::numeric_limits<double>::infinity();
+    MERCURY_CHECK_THROWS(MarketSimulator{c});
+}
+MERCURY_TEST(no_event_exceeds_horizon) {
+    MarketSimulator sim(make_config(8, 1));
+    sim.run();
+    MERCURY_CHECK_EQ(sim.events().size(), 0U);
+    MERCURY_CHECK_EQ(sim.now(), 1);
+}
 MERCURY_MAIN()

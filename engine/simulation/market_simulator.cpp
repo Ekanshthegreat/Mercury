@@ -223,7 +223,7 @@ Quantity MarketSimulator::do_limit(Side side, EventType type) {
     const OrderId id = next_order_id_++;
 
     const SubmitResult res =
-        book_.submit_limit(side, price, qty, config_.participant, id);
+        book_.submit_limit(side, price, qty, config_.participant, id, now_);
 
     stats_.limit_orders += 1;
     if (res.filled > 0) {
@@ -242,7 +242,7 @@ Quantity MarketSimulator::do_limit(Side side, EventType type) {
 Quantity MarketSimulator::do_market(Side side, EventType type) {
     const Quantity qty = draw_market_size();
     const OrderId id = next_order_id_++;
-    const SubmitResult res = book_.submit_market(side, qty, config_.participant, id);
+    const SubmitResult res = book_.submit_market(side, qty, config_.participant, id, now_);
 
     stats_.market_orders += 1;
     stats_.shares_traded += res.filled;
@@ -346,6 +346,10 @@ bool MarketSimulator::step() {
     // --- Draw the waiting time (exact for piecewise-constant intensity) ------
     const double dt_seconds = rng_.exponential(total);
     const Timestamp dt_ns = static_cast<Timestamp>(dt_seconds * 1e9) + 1;
+    if (dt_ns > config_.horizon - now_) {
+        now_ = config_.horizon;
+        return false;
+    }
     now_ += dt_ns;
 
     // --- Choose the event type by inverse-CDF sampling ----------------------
@@ -366,6 +370,7 @@ bool MarketSimulator::step() {
 
     // The fixed quantities returned by the helpers are already folded into
     // `stats_` inside them; here we only need the side effect.
+    const std::size_t log_size_before = events_.size();
     switch (type) {
         case EventType::LimitBid:
             (void)do_limit(Side::Buy, type);
@@ -399,7 +404,7 @@ bool MarketSimulator::step() {
         stats_.sum_squared_mid_change += dmid * dmid;
         stats_.mid_change_count += 1;
     }
-    if (config_.record_events && !events_.empty()) {
+    if (config_.record_events && events_.size() > log_size_before) {
         events_.back().mid_before = mid_before;
         events_.back().mid_after = mid_after;
     }
