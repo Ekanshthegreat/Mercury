@@ -149,7 +149,9 @@ struct ModelParams {
             limit_spread_sensitivity, flow_imbalance, impact_ticks_per_unit,
             hawkes_alpha, hawkes_beta, mean_limit_size, mean_market_size, tick_size};
         for (double value : values) if (!std::isfinite(value)) return false;
-        if (cancel_imbalance_sensitivity < 0 || limit_spread_sensitivity < 0 || tick_size <= 0) return false;
+        if (cancel_imbalance_sensitivity < 0 || cancel_imbalance_sensitivity > 3 ||
+            std::fabs(market_imbalance_sensitivity) > 3 || limit_spread_sensitivity < 0 ||
+            limit_spread_sensitivity > 1 || tick_size <= 0) return false;
         // Resource bounds also prevent float-to-integer overflow in event generation.
         if (limit_rate > 10000 || cancel_rate > 10000 || market_rate > 10000 ||
             mean_limit_size > 1000000 || mean_market_size > 1000000 ||

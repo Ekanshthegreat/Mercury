@@ -7,7 +7,7 @@ namespace {
 constexpr OrderId algo_base = OrderId{1} << 63;
 void validate(const ExecutionConfig& c) {
     if (c.quantity <= 0 || c.quantity > 1'000'000'000 || c.horizon <= 0 ||
-        c.horizon > 3600'000'000'000LL || c.interval <= 0 || c.interval > c.horizon ||
+        c.horizon > 3600'000'000'000LL || c.interval <= 0 || c.interval > c.horizon || c.horizon / c.interval > 100000 ||
         !std::isfinite(c.participation) || c.participation <= 0 || c.participation > 1 ||
         !std::isfinite(c.residual_penalty) || c.residual_penalty < 0)
         throw std::invalid_argument("Invalid execution configuration");
@@ -58,6 +58,7 @@ MarketTape generate_tape(const ModelParams& params, std::uint64_t seed, Timestam
 }
 ExecutionResult replay_execution(const MarketTape& tape, Policy policy, const ExecutionConfig& c) {
     validate(c);
+    (void)policy_name(policy);
     if (!tape.params.is_valid() || tape.horizon < c.horizon) throw std::invalid_argument("Tape/config mismatch");
     Timestamp previous = 0;
     for (const auto& e : tape.events) {

@@ -259,6 +259,7 @@ Quantity MarketSimulator::do_market(Side side, EventType type) {
 
 bool MarketSimulator::step() {
     if (now_ >= config_.horizon) return false;
+    if (stats_.event_count >= 2'000'000) throw std::runtime_error("Simulation event budget exceeded");
 
     const ModelParams& p = config_.params;
 

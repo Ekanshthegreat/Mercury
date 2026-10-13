@@ -44,7 +44,7 @@ void print_usage() {
         "  mercury_cli simulate [--seed N] [--seconds S] [--flow-imbalance F]\n"
         "      Run the deterministic order-flow simulator and summarise it.\n"
         "\n"
-        "Execution/search subcommands arrive in later phases.\n";
+        "Run mercury_experiment --help for policy comparisons and stress search.\n";
 }
 
 void print_top(const OrderBook& book) {
@@ -130,11 +130,11 @@ int cmd_simulate(int argc, char** argv) {
         };
         if (arg == "--seed") {
             std::int64_t v = 0;
-            if (!next_int(v)) { std::cerr << "simulate: --seed needs an integer\n"; return 2; }
+            if (!next_int(v) || v < 0) { std::cerr << "simulate: --seed needs an integer\n"; return 2; }
             cfg.seed = static_cast<std::uint64_t>(v);
         } else if (arg == "--seconds") {
             std::int64_t v = 0;
-            if (!next_int(v) || v <= 0) {
+            if (!next_int(v) || v <= 0 || v > 3600) {
                 std::cerr << "simulate: --seconds needs a positive integer\n";
                 return 2;
             }
@@ -147,7 +147,9 @@ int cmd_simulate(int argc, char** argv) {
             double v = 0.0;
             const std::string_view s = argv[++i];
             try {
-                v = std::stod(std::string(s));
+                std::size_t used{};
+                v = std::stod(std::string(s), &used);
+                if (used != s.size() || !std::isfinite(v)) throw std::invalid_argument("Invalid number");
             } catch (...) {
                 std::cerr << "simulate: --flow-imbalance needs a number\n";
                 return 2;
@@ -214,6 +216,7 @@ int cmd_simulate(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    try {
     if (argc < 2) {
         print_usage();
         return 1;
@@ -229,4 +232,7 @@ int main(int argc, char** argv) {
     std::cerr << "unknown command: " << cmd << "\n";
     print_usage();
     return 1;
+    } catch (const std::exception& e) {
+        std::cerr << "Mercury: " << e.what() << '\n'; return 2;
+    }
 }
