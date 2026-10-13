@@ -1,0 +1,14 @@
+# Build outputs
+/build/
+/build-*/
+
+# Editor / tooling
+.vscode/
+.idea/
+compile_commands.json
+
+# Scratch diagnostics (local-only probes, not part of the shipped apps)
+/apps/probe_mix.cpp
+
+# macOS
+.DS_Store
