@@ -109,17 +109,8 @@ endif()
 # ---------------------------------------------------------------------------
 # CUDA backend (never required; only added when explicitly enabled)
 # ---------------------------------------------------------------------------
-if(MERCURY_ENABLE_CUDA)
-    include(CheckLanguage)
-    check_language(CUDA)
-    if(CMAKE_CUDA_COMPILER)
-        enable_language(CUDA)
-        message(STATUS "CUDA toolkit found: ${CMAKE_CUDA_COMPILER}")
-        add_subdirectory(gpu)
-    else()
-        message(WARNING "MERCURY_ENABLE_CUDA=ON but no CUDA compiler was found; "
-                        "building CPU-only.")
-    endif()
+if(MERCURY_ENABLE_CUDA OR MERCURY_BUILD_PYTHON)
+    message(FATAL_ERROR "CUDA and Python bindings are roadmap items, not implemented in the CPU MVP.")
 endif()
 
 # ---------------------------------------------------------------------------

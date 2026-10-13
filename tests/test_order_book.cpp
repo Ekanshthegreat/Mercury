@@ -285,4 +285,20 @@ MERCURY_TEST(levels_and_depth_views) {
     book.check_invariants();
 }
 
+MERCURY_TEST(auto_ids_do_not_collide_with_explicit_live_ids) {
+    OrderBook b;
+    b.submit_limit(Side::Buy, 100, 50, 1, 1);
+    const auto result = b.submit_limit(Side::Buy, 100, 60);
+    MERCURY_CHECK_EQ(result.id, 2U);
+    MERCURY_CHECK_EQ(b.quantity_at(Side::Buy, 100), 110);
+    MERCURY_CHECK(b.cancel(1));
+    b.check_invariants();
+    MERCURY_CHECK_EQ(b.quantity_at(Side::Buy, 100), 60);
+}
+MERCURY_TEST(extreme_prices_rejected_before_arithmetic) {
+    OrderBook b;
+    const auto result = b.submit_limit(Side::Buy, std::numeric_limits<Price>::min()+1, 50);
+    MERCURY_CHECK_EQ(result.status, OrderStatus::Rejected);
+    MERCURY_CHECK(b.empty());
+}
 MERCURY_MAIN()

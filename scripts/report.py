@@ -5,6 +5,7 @@ import csv
 import html
 import json
 import math
+import re
 from pathlib import Path
 
 
@@ -51,6 +52,8 @@ def render(directory):
         if any(not math.isfinite(float(row[key])) for key in numeric):
             raise ValueError('Non-finite summary')
     regimes = list(dict.fromkeys(row['regime'] for row in rows))
+    if any(not re.fullmatch(r'[a-zA-Z0-9_-]+', name) for name in regimes):
+        raise ValueError('Invalid regime name')
     options, panels = [], []
     for index, regime in enumerate(regimes):
         group = [r for r in rows if r['regime'] == regime]

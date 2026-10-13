@@ -91,9 +91,8 @@ struct ModelParams {
     /// to create *directionally adverse* regimes for an executing strategy.
     double flow_imbalance{0.0};
 
-    /// Per-event price-impact scale: the typical number of ticks the mid moves
-    /// in response to a unit of net order flow, before clamping to the model's
-    /// tick grid. Larger values make the environment more volatile.
+    /// Reserved legacy field: currently has no effect. Price changes come from
+    /// queue depletion, not an additive impact equation. Excluded from MVP search.
     double impact_ticks_per_unit{0.05};
 
     // -- Self-excitation (Hawkes) -------------------------------------------

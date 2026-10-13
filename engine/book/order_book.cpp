@@ -30,10 +30,16 @@ SubmitResult OrderBook::submit_limit(Side side, Price price, Quantity quantity,
                                      Timestamp time, TimeInForce tif)
 {
     SubmitResult result;
-    result.id = id != kInvalidOrderId ? id : next_auto_id_++;
+    result.id = id;
+    if (id == kInvalidOrderId) {
+        while (next_auto_id_ != 0 && order_index_.count(next_auto_id_) != 0) ++next_auto_id_;
+        if (next_auto_id_ == 0) return result;
+        result.id = next_auto_id_++;
+    }
 
     // Validation. Reject before touching any state so a bad order is a no-op.
-    if (quantity <= 0 || price == kNoPrice || price == kInvalidPrice) {
+    if (quantity <= 0 || price > std::numeric_limits<Price>::max()/4 ||
+        price < std::numeric_limits<Price>::min()/4) {
         result.status = OrderStatus::Rejected;
         return result;
     }
@@ -107,7 +113,12 @@ SubmitResult OrderBook::submit_market(Side side, Quantity quantity,
                                       ParticipantId participant, OrderId id,
                                       Timestamp time) {
     SubmitResult result;
-    result.id = id != kInvalidOrderId ? id : next_auto_id_++;
+    result.id = id;
+    if (id == kInvalidOrderId) {
+        while (next_auto_id_ != 0 && order_index_.count(next_auto_id_) != 0) ++next_auto_id_;
+        if (next_auto_id_ == 0) return result;
+        result.id = next_auto_id_++;
+    }
 
     if (quantity <= 0) {
         result.status = OrderStatus::Rejected;
