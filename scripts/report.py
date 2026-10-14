@@ -86,10 +86,17 @@ def render(directory):
     if mode=='replay':
         page += '<p class="notes">This is a replay of one saved market tape. The charts describe that single run, not a statistical estimate of mean or tail risk.</p>'
     page += ''.join(panels)
-    page += f'''<aside class="notes"><h2>Read the comparison</h2><p>Mean error bars show one sample standard error. Δ vs TWAP uses paired seed differences; a negative number means lower cost. Tail estimates from {count} seeds are noisy: the worst 5% spans only {count*.05:g} observations, with fractional boundary weighting.</p>
+    tape_links = ' · '.join(f'<a href="tapes/{html.escape(path.name, quote=True)}">{html.escape(path.stem.replace("_", " "))} tape</a>' for path in sorted((directory / 'tapes').glob('*.mtape')))
+    interpretation = (
+        'The table shows one realized execution outcome per policy on the same saved market stream. Standard errors are unavailable with one observation; P95 and CVaR95 collapse to that observation. Use repeated independent tapes for distributional claims.'
+        if mode == 'replay' else
+        f'Mean error bars show one sample standard error. Δ vs TWAP uses paired seed differences; a negative number means lower cost. Tail estimates from {count} seeds are noisy: the worst 5% spans only {count*.05:g} observations, with fractional boundary weighting.'
+    )
+    page += f'''<aside class="notes"><h2>Read the comparison</h2><p>{interpretation}</p>
 <p>Search uses {manifest['candidates']} candidates and {training} training seeds per candidate. Evaluation starts at seed {manifest['first_evaluation_seed']}; search and evaluation seeds are disjoint for stress runs. Neighbors change only market-order intensity by ±10% within the search bounds.</p>
 <p>External event times, prices, quantities and cancellation IDs are frozen before execution. Policy orders affect replayed queues and fills, but do not change external arrival rates. Fees are explicit per-filled-share inputs, not calibrated exchange schedules. No empirical calibration, price prediction, live trading or GPU performance is claimed.</p>
 <p><a href="runs.csv">Raw runs</a> · <a href="summary.csv">Summary</a> · <a href="decisions.csv">First-seed decisions</a> · <a href="fills.csv">Individual fills</a> · <a href="market_events.csv">First-seed market events</a> · <a href="manifest.json">Configuration</a></p>
+<p>Replay files: {tape_links or "not available in this export"}</p>
 <details><summary>Full configuration</summary><pre>{html.escape(json.dumps(manifest,indent=2))}</pre></details></aside>
 </main><script>document.querySelector('#regime').addEventListener('change',e=>{{document.querySelectorAll('.regime').forEach(p=>{{p.hidden=p.dataset.index!==e.target.value;}});}});</script></html>'''
     (directory / 'report.html').write_text(page)

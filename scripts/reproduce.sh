@@ -32,4 +32,8 @@ RESULT_DIR="${PROJECT_ROOT}/results/reproduction"
 "${BUILD_DIR}/mercury_experiment" stress --out "${RESULT_DIR}" --runs 128 --candidates 32 --training-runs 32 --workers 4
 python3 "${PROJECT_ROOT}/scripts/report.py" "${RESULT_DIR}"
 
+REPLAY_DIR="${PROJECT_ROOT}/results/reference-replay"
+"${BUILD_DIR}/mercury_experiment" replay --tape "${PROJECT_ROOT}/examples/reference/tapes/baseline.mtape" --out "${REPLAY_DIR}"
+python3 "${PROJECT_ROOT}/scripts/report.py" "${REPLAY_DIR}"
+
 echo "== OK =="
