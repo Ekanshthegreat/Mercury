@@ -57,6 +57,7 @@ add_library(mercury_engine
     engine/simulation/market_simulator.cpp
     engine/execution/execution.cpp
     engine/experiments/experiment.cpp
+    engine/experiments/tape_io.cpp
 )
 
 target_include_directories(mercury_engine PUBLIC

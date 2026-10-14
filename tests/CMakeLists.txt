@@ -21,3 +21,5 @@ mercury_add_test(test_simulation)
 mercury_add_test(test_execution)
 
 mercury_add_test(test_experiments)
+
+mercury_add_test(test_tape_io)
