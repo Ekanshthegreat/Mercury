@@ -26,13 +26,13 @@ def chart(rows, field, title):
     for index in range(6):
         value = lo + index * (hi - lo) / 5
         px = x(value)
-        parts += [f'<path d="M{px:.2f},45V250" stroke="#e1e5eb"/>',
+        parts += [f'<path d="M{px:.2f},45V250" stroke="#e4e4dc"/>',
                   f'<text x="{px:.2f}" y="275" text-anchor="middle" font-size="12" font-family="sans-serif">{value:.1f}</text>']
-    parts.append(f'<path d="M{x(0):.2f},45V250" stroke="#768195"/>')
+    parts.append(f'<path d="M{x(0):.2f},45V250" stroke="#8b8c80"/>')
     for i, row in enumerate(rows):
         py, value = 60 + i * 38, float(row[field])
         parts += [f'<text x="128" y="{py+17}" text-anchor="end" font-size="13" font-family="sans-serif">{html.escape(row["policy"])}</text>',
-                  f'<rect x="{min(x(0),x(value)):.2f}" y="{py}" width="{abs(x(value)-x(0)):.2f}" height="24" fill="#365d86"/>']
+                  f'<rect x="{min(x(0),x(value)):.2f}" y="{py}" width="{abs(x(value)-x(0)):.2f}" height="24" fill="#59634e"/>']
         if field == 'mean_ticks':
             se = float(row['standard_error_ticks'])
             parts.append(f'<path d="M{x(value-se):.2f},{py+12}H{x(value+se):.2f}" stroke="#192330" stroke-width="2"/>')
@@ -75,10 +75,35 @@ def render(directory):
 <div class="table-wrap"><table><thead><tr><th>Policy</th><th>Mean</th><th>SE</th><th>P95</th><th>CVaR95</th><th>Fill rate</th><th>Δ vs TWAP</th><th>Paired SE</th></tr></thead><tbody>{cells}</tbody></table></div></section>''')
     page = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mercury · Execution stress report</title><style>
-*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#1d2937;font:15px/1.6 system-ui,sans-serif}main{max-width:1200px;margin:40px auto;padding:0 22px}h1{font-size:34px;line-height:1.2}h2{font-size:22px}header p{max-width:850px}.tag{font-size:12px;letter-spacing:.1em;color:#4b6079;text-transform:uppercase}.controls,section,.notes{background:white;border:1px solid #dce2e9;border-radius:8px;padding:22px;margin:22px 0}select{font:inherit;padding:8px;margin-left:12px;border:1px solid #bac6d2;border-radius:4px}.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}figure{margin:0}svg{width:100%;height:auto}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}th,td{text-align:right;padding:12px;border-bottom:1px solid #e4e8ed}th:first-child{text-align:left}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#f6f7f9;padding:15px}a{color:#365d86}details{margin-top:16px}[hidden]{display:none!important}@media(max-width:760px){main{margin-top:20px}h1{font-size:27px}.charts{grid-template-columns:1fr}select{margin:8px 0;max-width:100%}}
-</style><main><header><span class="tag">Mercury · CPU laboratory</span><h1>Execution under market stress</h1>
-<p><a href="https://github.com/Ekanshthegreat/Mercury">Source and architecture</a> · <a href="https://github.com/Ekanshthegreat/Mercury/blob/main/docs/EXPERIMENTS.md">Experiment design</a> · <a href="https://github.com/Ekanshthegreat/Mercury/blob/main/docs/TAPES.md">Replay guide</a></p>
-<p>Five policies, shared external market events and observed-state decisions. Costs include a common deadline closeout and an explicit penalty for unfilled shares. These are synthetic experiments.</p></header>
+*{box-sizing:border-box}
+body{margin:0;background:#fcfcfa;color:#292c26;font:14px/1.65 Georgia,"Times New Roman",serif}
+main{max-width:1080px;margin:36px auto;padding:0 28px}
+header{border-bottom:2px solid #30372a;padding-bottom:20px}
+h1{font-size:30px;line-height:1.2;font-weight:normal;margin:12px 0}
+h2{font-size:20px;font-weight:normal;margin:0 0 16px}
+header p{max-width:850px;margin:10px 0 0}
+.tag{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#65695d}
+header nav{font:12px/1.8 system-ui,sans-serif;margin-top:12px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;border-bottom:1px solid #d7d9d0;padding:16px 0;font:12px/1.7 system-ui,sans-serif}
+.controls p{flex-basis:100%;margin:0;color:#65695d;font-variant-numeric:tabular-nums}
+section{padding:24px 0;border-bottom:1px solid #d7d9d0}
+.notes{padding:24px 0;font-size:13px}
+.notes h2{font-size:19px}.notes p{max-width:960px;margin:12px 0}
+select{font:12px system-ui,sans-serif;padding:7px 30px 7px 9px;border:1px solid #aeb4a4;border-radius:0;background:white;color:#292c26}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+figure{margin:0}svg{width:100%;height:auto}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:8px 10px;border-bottom:1px solid #e4e5de}
+thead th{font:12px system-ui,sans-serif;border-top:1px solid #454d3b;border-bottom:1px solid #454d3b;padding-top:10px;padding-bottom:10px}
+th:first-child{text-align:left}tbody th{font-weight:normal}tbody tr:hover{background:#f1f2ec}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.7 ui-monospace,monospace;background:#f1f2ec;padding:15px}
+a{color:#465b37;text-underline-offset:3px}a:hover{color:#222b1b}
+details{margin-top:16px}summary{cursor:pointer;font:12px system-ui,sans-serif}[hidden]{display:none!important}
+@media(max-width:760px){main{margin-top:22px;padding:0 18px}h1{font-size:25px}.charts{grid-template-columns:1fr;gap:18px}select{max-width:100%}th,td{padding:8px}.controls{gap:10px}}
+
+</style><main><header><span class="tag">MERCURY / EXECUTION STUDY</span><h1>Execution policy comparison</h1>
+<nav aria-label="Project documentation"><a href="https://github.com/Ekanshthegreat/Mercury">Source</a> · <a href="https://github.com/Ekanshthegreat/Mercury/blob/main/docs/EXPERIMENTS.md">Experiment design</a> · <a href="https://github.com/Ekanshthegreat/Mercury/blob/main/docs/TAPES.md">Replay guide</a></nav>
+<p>Five execution policies on shared synthetic market streams. Cost includes deadline closeout, explicit fees and a penalty for residual inventory.</p></header>
 '''
     count = manifest['runs']
     training = manifest['training_runs']
@@ -93,7 +118,7 @@ def render(directory):
         if mode == 'replay' else
         f'Mean error bars show one sample standard error. Δ vs TWAP uses paired seed differences; a negative number means lower cost. Tail estimates from {count} seeds are noisy: the worst 5% spans only {count*.05:g} observations, with fractional boundary weighting.'
     )
-    page += f'''<aside class="notes"><h2>Read the comparison</h2><p>{interpretation}</p>
+    page += f'''<aside class="notes"><h2>Method and interpretation</h2><p>{interpretation}</p>
 <p>Search uses {manifest['candidates']} candidates and {training} training seeds per candidate. Evaluation starts at seed {manifest['first_evaluation_seed']}; search and evaluation seeds are disjoint for stress runs. Neighbors change only market-order intensity by ±10% within the search bounds.</p>
 <p>External event times, prices, quantities and cancellation IDs are frozen before execution. Policy orders affect replayed queues and fills, but do not change external arrival rates. Fees are explicit per-filled-share inputs, not calibrated exchange schedules. No empirical calibration, price prediction, live trading or GPU performance is claimed.</p>
 <p><a href="runs.csv">Raw runs</a> · <a href="summary.csv">Summary</a> · <a href="decisions.csv">First-seed decisions</a> · <a href="fills.csv">Individual fills</a> · <a href="market_events.csv">First-seed market events</a> · <a href="manifest.json">Configuration</a></p>

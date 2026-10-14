@@ -1,33 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-label="Mean cost with ±1 standard error">
 <rect width="760" height="300" fill="white"/>
 <text x="18" y="27" font-size="18" font-family="sans-serif">Mean cost with ±1 standard error</text>
-<path d="M140.00,45V250" stroke="#e1e5eb"/>
+<path d="M140.00,45V250" stroke="#e4e4dc"/>
 <text x="140.00" y="275" text-anchor="middle" font-size="12" font-family="sans-serif">-1.7</text>
-<path d="M254.00,45V250" stroke="#e1e5eb"/>
+<path d="M254.00,45V250" stroke="#e4e4dc"/>
 <text x="254.00" y="275" text-anchor="middle" font-size="12" font-family="sans-serif">-0.1</text>
-<path d="M368.00,45V250" stroke="#e1e5eb"/>
+<path d="M368.00,45V250" stroke="#e4e4dc"/>
 <text x="368.00" y="275" text-anchor="middle" font-size="12" font-family="sans-serif">1.4</text>
-<path d="M482.00,45V250" stroke="#e1e5eb"/>
+<path d="M482.00,45V250" stroke="#e4e4dc"/>
 <text x="482.00" y="275" text-anchor="middle" font-size="12" font-family="sans-serif">3.0</text>
-<path d="M596.00,45V250" stroke="#e1e5eb"/>
+<path d="M596.00,45V250" stroke="#e4e4dc"/>
 <text x="596.00" y="275" text-anchor="middle" font-size="12" font-family="sans-serif">4.6</text>
-<path d="M710.00,45V250" stroke="#e1e5eb"/>
+<path d="M710.00,45V250" stroke="#e4e4dc"/>
 <text x="710.00" y="275" text-anchor="middle" font-size="12" font-family="sans-serif">6.1</text>
-<path d="M263.86,45V250" stroke="#768195"/>
+<path d="M263.86,45V250" stroke="#8b8c80"/>
 <text x="128" y="77" text-anchor="end" font-size="13" font-family="sans-serif">adaptive</text>
-<rect x="263.86" y="60" width="390.98" height="24" fill="#365d86"/>
+<rect x="263.86" y="60" width="390.98" height="24" fill="#59634e"/>
 <path d="M629.33,72H680.35" stroke="#192330" stroke-width="2"/>
 <text x="128" y="115" text-anchor="end" font-size="13" font-family="sans-serif">aggressive</text>
-<rect x="263.86" y="98" width="159.71" height="24" fill="#365d86"/>
+<rect x="263.86" y="98" width="159.71" height="24" fill="#59634e"/>
 <path d="M423.57,110H423.57" stroke="#192330" stroke-width="2"/>
 <text x="128" y="153" text-anchor="end" font-size="13" font-family="sans-serif">passive</text>
-<rect x="195.16" y="136" width="68.70" height="24" fill="#365d86"/>
+<rect x="195.16" y="136" width="68.70" height="24" fill="#59634e"/>
 <path d="M191.64,148H198.68" stroke="#192330" stroke-width="2"/>
 <text x="128" y="191" text-anchor="end" font-size="13" font-family="sans-serif">pov</text>
-<rect x="263.86" y="174" width="189.93" height="24" fill="#365d86"/>
+<rect x="263.86" y="174" width="189.93" height="24" fill="#59634e"/>
 <path d="M432.61,186H474.97" stroke="#192330" stroke-width="2"/>
 <text x="128" y="229" text-anchor="end" font-size="13" font-family="sans-serif">twap</text>
-<rect x="263.86" y="212" width="372.11" height="24" fill="#365d86"/>
+<rect x="263.86" y="212" width="372.11" height="24" fill="#59634e"/>
 <path d="M612.07,224H659.88" stroke="#192330" stroke-width="2"/>
 <text x="425" y="295" text-anchor="middle" font-size="12" font-family="sans-serif">Cost: ticks per parent-order share; lower is better</text>
 </svg>
