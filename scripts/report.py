@@ -57,8 +57,8 @@ def render(directory):
     options, panels = [], []
     for index, regime in enumerate(regimes):
         group = [r for r in rows if r['regime'] == regime]
-        mean_svg = chart(group, 'mean_ticks', 'Mean cost with ±1 standard error')
-        tail_svg = chart(group, 'cvar95_ticks', 'Worst 5% average cost (CVaR95)')
+        mean_svg = chart(group, 'mean_ticks', 'Single-run replay cost' if manifest['mode']=='replay' else 'Mean cost with ±1 standard error')
+        tail_svg = chart(group, 'cvar95_ticks', 'Single-run cost (not a tail estimate)' if manifest['mode']=='replay' else 'Worst 5% average cost (CVaR95)')
         (directory / f'mean-{regime}.svg').write_text(mean_svg)
         (directory / f'tail-{regime}.svg').write_text(tail_svg)
         cells = ''
@@ -83,6 +83,8 @@ def render(directory):
     training = manifest['training_runs']
     mode = manifest['mode']
     page += f'<div class="controls"><label for="regime">Market regime</label><select id="regime">{"".join(options)}</select><p>{count} evaluation seeds per regime · {manifest["execution"]["quantity"]:,} shares · {manifest["execution"]["horizon_ns"]/1e9:g} virtual seconds · {mode} run · maker fee {manifest["execution"].get("maker_fee_ticks",0):g} · taker fee {manifest["execution"].get("taker_fee_ticks",0):g} ticks/share</p></div>'
+    if mode=='replay':
+        page += '<p class="notes">This is a replay of one saved market tape. The charts describe that single run, not a statistical estimate of mean or tail risk.</p>'
     page += ''.join(panels)
     page += f'''<aside class="notes"><h2>Read the comparison</h2><p>Mean error bars show one sample standard error. Δ vs TWAP uses paired seed differences; a negative number means lower cost. Tail estimates from {count} seeds are noisy: the worst 5% spans only {count*.05:g} observations, with fractional boundary weighting.</p>
 <p>Search uses {manifest['candidates']} candidates and {training} training seeds per candidate. Evaluation starts at seed {manifest['first_evaluation_seed']}; search and evaluation seeds are disjoint for stress runs. Neighbors change only market-order intensity by ±10% within the search bounds.</p>

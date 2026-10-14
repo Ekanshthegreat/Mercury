@@ -80,5 +80,26 @@ class CliChecks(unittest.TestCase):
                             - q*float(row['arrival_mid'])) + 10*int(row['residual'])+float(row['fee_notional']))/q
                     self.assertAlmostEqual(expected,float(row['cost_ticks']))
 
+    def test_saved_tape_replay_matches_original_seed_and_rejects_corruption(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); original=root/'original'; replay=root/'replay'
+            generated=self.command('compare','--out',str(original),'--runs','4','--seconds','3')
+            self.assertEqual(generated.returncode,0,generated.stderr)
+            tape=original/'tapes'/'baseline.mtape'
+            result=self.command('replay','--tape',str(tape),'--out',str(replay))
+            self.assertEqual(result.returncode,0,result.stderr)
+            with (original/'runs.csv').open() as f: expected=[r for r in csv.DictReader(f) if r['seed']=='7']
+            with (replay/'runs.csv').open() as f: actual=list(csv.DictReader(f))
+            self.assertEqual(len(actual),5)
+            for before,after in zip(expected,actual):
+                self.assertEqual({k:v for k,v in before.items() if k!='regime'}, {k:v for k,v in after.items() if k!='regime'})
+            self.assertIn('saved market tape',render(replay).read_text())
+            damaged=root/'bad.mtape';data=bytearray(tape.read_bytes());data[0]=ord('X');damaged.write_bytes(data)
+            failed=self.command('replay','--tape',str(damaged),'--out',str(root/'bad-results'))
+            self.assertEqual(failed.returncode,2)
+            self.assertFalse((root/'bad-results'/'runs.csv').exists())
+            self.assertEqual(self.command('replay','--tape',str(tape),'--seed','2').returncode,2)
+            self.assertEqual(self.command('replay').returncode,2)
+
 if __name__ == '__main__':
     unittest.main()

@@ -4,17 +4,19 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
 #include "engine/experiments/experiment.hpp"
 #include "engine/experiments/statistics.hpp"
+#include "engine/experiments/tape_io.hpp"
 namespace {
 using namespace mercury;
 struct Options {
     std::uint64_t seed{7};
     std::size_t runs{32}, candidates{16}, training{16}, workers{2};
-    std::string output{"results/demo"};
+    std::string output{"results/demo"}, tape_path;
     ExecutionConfig execution;
 };
 std::uint64_t integer(const std::string& text, std::uint64_t lo, std::uint64_t hi) {
@@ -35,11 +37,12 @@ void usage() {
     std::cout
         << "Mercury experiment runner " << MERCURY_VERSION
         << "\n"
-           "mercury_experiment compare|stress [options]\n"
+           "mercury_experiment compare|stress|replay [options]\n"
            "  --out DIRECTORY  --runs 2..1000  --seed 0..1000000000\n"
            "  --seconds 1..300 --quantity 1..1000000 --workers 1..32\n"
            "  --candidates 1..100 --training-runs 2..256 (stress only)\n"
            "  --side buy|sell --maker-fee TICKS --taker-fee TICKS\n"
+           "  replay: --tape FILE [--out DIRECTORY] [quantity/side/fee options]\n"
            "Outputs run/summary CSV, full configuration JSON and decision traces.\n"
            "Stress optimizes TWAP CVaR95 on training seeds, evaluates separate holdout seeds.\n";
 }
@@ -73,14 +76,19 @@ int main(int argc, char** argv) {
             return argc < 2 ? 2 : 0;
         }
         const std::string mode = argv[1];
-        if (mode != "compare" && mode != "stress")
-            throw std::invalid_argument("Expected compare or stress");
+        if (mode != "compare" && mode != "stress" && mode != "replay")
+            throw std::invalid_argument("Expected compare, stress or replay");
         Options o;
         for (int i = 2; i < argc; ++i) {
             const std::string key = argv[i];
             if (i + 1 == argc) throw std::invalid_argument("Missing value for " + key);
             const std::string value = argv[++i];
-            if (key == "--out")
+            if (mode == "replay" && key != "--tape" && key != "--out" && key != "--quantity" &&
+                key != "--side" && key != "--maker-fee" && key != "--taker-fee")
+                throw std::invalid_argument("Replay does not accept " + key);
+            if (key == "--tape" && mode == "replay")
+                o.tape_path = value;
+            else if (key == "--out")
                 o.output = value;
             else if (key == "--runs")
                 o.runs = integer(value, 2, 1000);
@@ -108,9 +116,21 @@ int main(int argc, char** argv) {
             } else
                 throw std::invalid_argument("Unknown option: " + key);
         }
+        std::optional<MarketTape> imported;
+        if (mode == "replay") {
+            if (o.tape_path.empty()) throw std::invalid_argument("Replay needs --tape FILE");
+            imported = read_tape(o.tape_path);
+            o.execution.horizon = imported->horizon;
+            o.execution.interval = std::min(o.execution.interval, imported->horizon);
+            o.seed = imported->seed;
+            o.runs = 1;
+            o.workers = 1;
+        }
         const std::filesystem::path root(o.output);
         std::filesystem::create_directories(root);
         std::vector<std::pair<std::string, ModelParams>> regimes{{"baseline", reference_market()}};
+        if (imported) regimes = {{"imported", imported->params}};
+        std::filesystem::create_directories(root / "tapes");
         SearchResult search;
         if (mode == "stress") {
             search = search_regimes(o.execution, o.seed, o.candidates, o.training);
@@ -165,8 +185,18 @@ int main(int argc, char** argv) {
             if (index) manifest << ",\n";
             manifest << '"' << name << "\":";
             params_json(manifest, params);
-            const auto results =
-                compare_policies(params, o.execution, first_seed, o.runs, o.workers);
+            std::vector<Trial> results;
+            if (imported) {
+                const Policy policies[] = {Policy::Aggressive, Policy::Twap, Policy::Pov,
+                                           Policy::Passive, Policy::Adaptive};
+                for (std::size_t j = 0; j < 5; ++j)
+                    results.push_back({first_seed, policies[j],
+                                       replay_execution(*imported, policies[j], o.execution),
+                                       j == 0 ? imported->events : std::vector<SimEvent>{}});
+            } else
+                results = compare_policies(params, o.execution, first_seed, o.runs, o.workers);
+            write_tape({params, o.execution.horizon, first_seed, results.front().external_events},
+                       root / "tapes" / (name + ".mtape"));
             std::map<std::string, std::vector<double>> costs, fills, differences;
             for (std::size_t i = 0; i < results.size(); ++i) {
                 const auto& t = results[i];
