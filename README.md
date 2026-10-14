@@ -2,14 +2,109 @@
 
 [![Build and reproduce](https://github.com/Ekanshthegreat/Mercury/actions/workflows/ci.yml/badge.svg)](https://github.com/Ekanshthegreat/Mercury/actions/workflows/ci.yml)
 
-A C++20 market-microstructure lab for comparing execution policies and searching
-for synthetic regimes where execution becomes expensive. The v0.3.0 CPU MVP runs locally
-with no accounts, market-data subscription or external C++ dependencies.
+**A C++20 market-microstructure laboratory for execution, reproducible simulation
+and synthetic tail-risk experiments.**
 
-Mercury combines a price-time-priority limit order book, state-dependent order
-flow, five execution policies, parallel experiments and inspectable reports.
+[Explore the interactive report](https://ekanshthegreat.github.io/Mercury/) ·
+[Architecture](docs/ARCHITECTURE.md) · [Experiment design](docs/EXPERIMENTS.md) ·
+[Tape format](docs/TAPES.md) · [Release history](CHANGELOG.md)
 
-![Held-out tail costs in the selected regime](examples/reference/tail-selected.svg)
+Mercury asks a concrete question: **how does the same trading objective behave
+under different order-flow conditions and execution policies?** It combines a
+price-time-priority order book, a seeded market generator and five causal
+execution policies. Each comparison reuses one external event tape across
+independent books, then exports every fill, fee and residual quantity.
+
+![Held-out tail costs in the selected synthetic regime](examples/reference/tail-selected.svg)
+
+| Core | Experiments | Evidence |
+| --- | --- | --- |
+| Integer prices, FIFO queues, exact match records | Five policies on shared external streams | Hand-computed accounting and causal-prefix tests |
+| Virtual nanosecond clock and seeded flow | Bounded stress search with disjoint holdout seeds | 128-seed committed reference experiment |
+| Independent book per policy | CPU workers with stable result ordering | Exact serial/parallel equivalence tests |
+| Versioned saved tapes with bounded loading | Replay without market regeneration | Exact round-trip fills and corruption rejection |
+
+The Pages site serves the committed interactive report and downloadable results.
+The C++ engine runs locally. These experiments use a synthetic, uncalibrated
+market; the selected regime is a model failure case, not evidence about a venue.
+
+## Architecture at a glance
+
+```mermaid
+flowchart TB
+  Params[Model parameters and seed] --> Generator[State-dependent reference market]
+  Generator --> Tape[Frozen external event tape]
+  File[Validated saved tape] --> Tape
+  Tape --> A[Aggressive book]
+  Tape --> T[TWAP book]
+  Tape --> V[POV book]
+  Tape --> P[Passive book]
+  Tape --> C[Adaptive book]
+  A --> Accounting[Exact fills / fees / residual marks]
+  T --> Accounting
+  V --> Accounting
+  P --> Accounting
+  C --> Accounting
+  Accounting --> Stats[Paired costs / SE / P95 / CVaR95]
+  Stats --> Export[CSV / manifest / SVG / HTML report]
+```
+
+External events are shared; queue state is not. Each policy changes its own
+replayed book. The generator's future arrival rates remain frozen, so the
+counterfactual deliberately omits feedback from the trader into market flow.
+
+## Causality by construction
+
+```mermaid
+sequenceDiagram
+  participant Tape as Frozen tape
+  participant Scheduler
+  participant Book as Policy's order book
+  participant Policy
+  Tape->>Scheduler: Next external event at time t
+  Scheduler->>Book: Apply event and account for matches
+  Note over Scheduler,Book: External events precede decisions at equal timestamps
+  Scheduler->>Policy: Current time, fills, observed volume, top of book
+  Policy->>Scheduler: Execution decision
+  Scheduler->>Book: Submit or cancel child order
+  Book->>Scheduler: Exact fill records
+  Note over Policy: No future-event or generator access in Observation
+```
+
+Prefix tests alter future events and require earlier policy decisions to remain
+identical. At the common deadline, resting execution children are cancelled and
+each policy attempts closeout. Unfilled shares remain residual inventory with an
+explicit mark and penalty; they are never reported as fictitious fills.
+
+## Stress search and holdout design
+
+```mermaid
+flowchart LR
+  Bounds[Six bounded synthetic parameters] --> Candidates[32 random candidates]
+  Training[32 shared training seeds] --> Score[TWAP CVaR95 objective]
+  Candidates --> Score
+  Score --> Selected[Selected configuration]
+  Selected --> Holdout[128 disjoint evaluation seeds]
+  Selected --> Neighbors[Market intensity minus / plus 10 percent]
+  Neighbors --> Holdout
+  Holdout --> Compare[All five policies and paired differences]
+```
+
+These counts describe the committed reference run. Search uses common training
+seeds across candidates; the selected configuration is evaluated on a separate
+seed range. Neighbor checks test sensitivity to market intensity. Random search
+is bounded and inspectable; it is not claimed to be an optimal optimizer.
+
+## Engineering decisions
+
+| Decision | Consequence | Inspect |
+| --- | --- | --- |
+| Sorted price levels, FIFO orders, ID index | Price-time matching and cancellation without scanning the entire book | [Matching engine](engine/book/order_book.cpp) |
+| Exact match records | Multi-level costs use each executed price | [Execution tests](tests/test_execution.cpp) |
+| Policy sees only current Observation | Future events are unavailable through the decision interface | [Execution interface](engine/execution/execution.hpp) |
+| One worker owns its market and books | No shared mutable book state; aggregation preserves ordering | [Experiments](engine/experiments/experiment.cpp) |
+| Bounded file and event budgets | Invalid or oversized replay input fails before result export | [Tape loader](engine/experiments/tape_io.cpp) |
+| Sanitizers plus reference-model testing | Memory checks complement matching/conservation checks | [Property tests](tests/test_order_book_property.cpp), [CI](.github/workflows/ci.yml) |
 
 ## Quick start
 
@@ -145,6 +240,9 @@ from exported fills. `--maker-fee` and `--taker-fee` are explicit ticks per fill
 share; negative maker fees model rebates. Defaults are zero and are not a claim
 about any exchange's fee schedule.
 
+<details>
+<summary><strong>Model assumptions and limitations</strong></summary>
+
 ## Model boundaries
 
 The comparison freezes external event times, prices, sizes and cancellation IDs
@@ -164,4 +262,14 @@ The optional excitation is a frozen-rate approximation, not an exact Hawkes
 thinning sampler. CUDA, Python bindings, empirical calibration and a live web API
 are roadmap items. No performance claims are made for unimplemented backends.
 
+</details>
+
 MIT licensed. Literature background is listed in [references](docs/references.md).
+
+## Publishing the report
+
+The Pages workflow copies `examples/reference/` as a self-contained site and
+serves `report.html` as its index. CSV, charts, configuration and replay tapes
+remain available beside it. Deployment follows successful main-branch Linux
+and macOS checks; pull requests do not publish. The hosted report describes the
+committed reference, not a live run or trading service.
