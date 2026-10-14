@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-10-14
+
+- Versioned, self-contained market tape files with bounded loading and integrity checks.
+- Replay CLI evaluates all five policies on saved events without market regeneration.
+- First-seed tape exports per regime and replay links in offline reports.
+- Single-run report labels distinguish replay diagnostics from distribution estimates.
+- Four committed reference tapes and fresh-clone replay reproduction.
+- 58 C++ cases and four end-to-end CLI checks, including exact replay reconciliation.
+
 ## 0.2.0 — 2026-10-13
 
 - Individual execution-fill exports with exact prices and maker/taker attribution.

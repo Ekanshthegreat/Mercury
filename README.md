@@ -3,7 +3,7 @@
 [![Build and reproduce](https://github.com/Ekanshthegreat/Mercury/actions/workflows/ci.yml/badge.svg)](https://github.com/Ekanshthegreat/Mercury/actions/workflows/ci.yml)
 
 A C++20 market-microstructure lab for comparing execution policies and searching
-for synthetic regimes where execution becomes expensive. The v0.2.0 CPU MVP runs locally
+for synthetic regimes where execution becomes expensive. The v0.3.0 CPU MVP runs locally
 with no accounts, market-data subscription or external C++ dependencies.
 
 Mercury combines a price-time-priority limit order book, state-dependent order
@@ -36,7 +36,8 @@ for a larger example, or reproduce it with:
 ```
 
 That builds and tests a fresh build directory, checks the CLI, runs the reference
-experiment and generates `results/reproduction/report.html`.
+experiment and generates `results/reproduction/report.html`. It also replays
+the committed baseline tape into `results/reference-replay/report.html`.
 
 ## What the MVP implements
 
@@ -64,6 +65,21 @@ Example commands:
 Use `mercury_experiment --help` for all options. `compare` evaluates only the
 baseline; `stress` adds the selected regime and two neighboring regimes.
 
+## Replay a saved market stream
+
+```sh
+./build/mercury_experiment replay --tape examples/reference/tapes/baseline.mtape --out results/replay
+python3 scripts/report.py results/replay
+```
+
+The file includes the initial book configuration and every external event.
+Replay runs all five policies without invoking the market generator. Choose
+`--quantity`, `--side`, `--maker-fee` and `--taker-fee` explicitly to match a
+custom original execution. Defaults are a 2,000-share buy with zero fees.
+`compare` and `stress` save the first evaluation seed of each regime under
+`tapes/`; they do not archive every evaluation seed. One replay is a diagnostic,
+not a tail-risk estimate. See [tape format and replay](docs/TAPES.md).
+
 ## Reference result
 
 The committed example executes a 2,000-share buy over 60 virtual seconds. Search
@@ -87,10 +103,11 @@ build environment alongside it.
 
 ## Engineering checks
 
-There are 54 C++ test cases across five suites and three Python end-to-end checks.
+There are 58 C++ test cases across six suites and four Python end-to-end checks.
 They cover book invariants, randomized reference-model comparisons, deterministic
 simulation, exact fill accounting, passive queue priority, causal policy prefixes,
-residual quantity, serial/parallel equivalence and input validation.
+residual quantity, serial/parallel equivalence, tape round trips, corruption
+rejection and input validation.
 
 ```sh
 python3 scripts/check_cli.py build

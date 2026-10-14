@@ -251,9 +251,10 @@
 <p>Search uses 32 candidates and 32 training seeds per candidate. Evaluation starts at seed 1000007; search and evaluation seeds are disjoint for stress runs. Neighbors change only market-order intensity by ±10% within the search bounds.</p>
 <p>External event times, prices, quantities and cancellation IDs are frozen before execution. Policy orders affect replayed queues and fills, but do not change external arrival rates. Fees are explicit per-filled-share inputs, not calibrated exchange schedules. No empirical calibration, price prediction, live trading or GPU performance is claimed.</p>
 <p><a href="runs.csv">Raw runs</a> · <a href="summary.csv">Summary</a> · <a href="decisions.csv">First-seed decisions</a> · <a href="fills.csv">Individual fills</a> · <a href="market_events.csv">First-seed market events</a> · <a href="manifest.json">Configuration</a></p>
+<p>Replay files: <a href="tapes/baseline.mtape">baseline tape</a> · <a href="tapes/neighbor_high_market.mtape">neighbor high market tape</a> · <a href="tapes/neighbor_low_market.mtape">neighbor low market tape</a> · <a href="tapes/selected.mtape">selected tape</a></p>
 <details><summary>Full configuration</summary><pre>{
   &quot;format_version&quot;: 2,
-  &quot;engine_version&quot;: &quot;0.2.0&quot;,
+  &quot;engine_version&quot;: &quot;0.3.0&quot;,
   &quot;mode&quot;: &quot;stress&quot;,
   &quot;seed&quot;: 7,
   &quot;first_evaluation_seed&quot;: 1000007,

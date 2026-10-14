@@ -1,10 +1,10 @@
 {
-  "date": "2026-10-13",
-  "source_revision": "368d3276ea836a9bb0165f18ff3ecc489cabf5ac",
+  "date": "2026-10-14",
+  "source_revision": "f4c23e2fa01faaef8aa66bd62686135e4ec3b416",
   "os": "macOS-26.5-arm64-arm-64bit-Mach-O",
   "architecture": "arm64",
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "cmake": "cmake version 3.31.5",
-  "command": "./build/mercury_experiment stress --out results/v02 --runs 128 --candidates 32 --training-runs 32 --workers 4",
+  "command": "./build/mercury_experiment stress --out results/v03 --runs 128 --candidates 32 --training-runs 32 --workers 4",
   "build": "Release; MERCURY_WERROR=ON"
 }
