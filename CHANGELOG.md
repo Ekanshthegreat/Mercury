@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Deterministic empirical CVaR95 bootstrap intervals in `tail_uncertainty.csv`, with explicit seeds and bounded resampling.
+- Preserve original summaries and omit intervals for single-tape replay; document small-sample and model limitations.
+
 ## 0.3.0 — 2026-10-14
 
 - Versioned, self-contained market tape files with bounded loading and integrity checks.

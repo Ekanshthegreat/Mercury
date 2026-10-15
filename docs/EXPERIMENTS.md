@@ -140,3 +140,22 @@ The end-to-end checks reconcile every exported run from fill quantities/prices,
 final marks, residual penalties and fees, including a sell-side fee example.
 The zero-fee v0.2.0 reference retains the v0.1.0 cost results; the new fields make
 those results auditable at the level of individual matches.
+
+
+## Tail uncertainty diagnostic
+
+New compare/stress runs also export `tail_uncertainty.csv`: a 95% percentile
+bootstrap interval for each policy's empirical CVaR95. Each row records its
+independent bootstrap seed and 512 resamples. Sampling uses Mercury's integer
+RNG; sorting the observed population first makes results insensitive to row
+order and worker count. Original run costs and summary columns are unchanged.
+Single-tape replay writes the header only: one observation cannot estimate
+sampling uncertainty. Bounds are the nearest-rank 2.5% and 97.5% quantiles of
+resampled CVaR95 values, retaining exact fractional 5% tail weighting.
+
+These intervals are conditional on the observed synthetic runs. Small samples
+can give misleadingly narrow intervals; bootstrap resampling cannot invent rare
+outcomes absent from the sample, correct model misspecification, or remove
+regime-selection bias. They are not paired policy-difference intervals or
+calibrated guarantees about real markets. Use larger independent holdouts for
+substantive tail comparisons.

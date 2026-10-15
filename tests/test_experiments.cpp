@@ -54,4 +54,27 @@ MERCURY_TEST(worker_errors_propagate_and_budgets_are_checked) {
     MERCURY_CHECK_THROWS(compare_policies(reference_market(), c, 1, 0, 1));
     MERCURY_CHECK_THROWS(search_regimes(c, 1, 0, 2));
 }
+MERCURY_TEST(tail_bootstrap_is_reproducible_and_order_independent) {
+    const std::vector<double> values{1, 3, 2, 9, 5, 4};
+    const auto a = bootstrap_cvar95(values, 7, 128);
+    auto reverse = values;
+    std::reverse(reverse.begin(), reverse.end());
+    const auto b = bootstrap_cvar95(reverse, 7, 128);
+    MERCURY_CHECK_EQ(a.lower, b.lower);
+    MERCURY_CHECK_EQ(a.upper, b.upper);
+    MERCURY_CHECK(a.lower >= 1 && a.upper <= 9 && a.lower <= a.upper);
+}
+MERCURY_TEST(tail_bootstrap_constant_sample_has_zero_width) {
+    const auto interval = bootstrap_cvar95({-3, -3, -3, -3}, 1, 40);
+    MERCURY_CHECK(std::abs(interval.lower + 3) < 1e-12);
+    MERCURY_CHECK(std::abs(interval.upper + 3) < 1e-12);
+}
+MERCURY_TEST(tail_bootstrap_rejects_invalid_samples_and_unbounded_work) {
+    MERCURY_CHECK_THROWS(bootstrap_cvar95({}, 1));
+    MERCURY_CHECK_THROWS(bootstrap_cvar95({1}, 1));
+    MERCURY_CHECK_THROWS(bootstrap_cvar95({1, std::numeric_limits<double>::quiet_NaN()}, 1));
+    MERCURY_CHECK_THROWS(bootstrap_cvar95({1, 2}, 1, 0));
+    MERCURY_CHECK_THROWS(bootstrap_cvar95({1, 2}, 1, 5001));
+    MERCURY_CHECK_THROWS(bootstrap_cvar95(std::vector<double>(10000, 1), 1, 5000));
+}
 MERCURY_MAIN()

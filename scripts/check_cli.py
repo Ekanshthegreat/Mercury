@@ -29,8 +29,14 @@ class CliChecks(unittest.TestCase):
                 r = self.command('stress','--out',str(directory),'--runs','4','--seconds','3',
                                  '--candidates','2','--training-runs','3','--workers',workers)
                 self.assertEqual(r.returncode, 0, r.stderr)
-            for name in ['runs.csv','summary.csv','search.csv','decisions.csv','fills.csv','market_events.csv']:
+            for name in ['runs.csv','summary.csv','search.csv','decisions.csv','fills.csv','market_events.csv','tail_uncertainty.csv']:
                 self.assertEqual((a/name).read_bytes(), (b/name).read_bytes())
+            with (a/'tail_uncertainty.csv').open() as f:
+                tails = list(csv.DictReader(f))
+            self.assertEqual(len(tails), 4*5)
+            for row in tails:
+                self.assertEqual(int(row['resamples']), 512)
+                self.assertLessEqual(float(row['cvar95_lower_ticks']), float(row['cvar95_upper_ticks']))
             manifest = json.loads((a/'manifest.json').read_text())
             self.assertGreater(manifest['first_evaluation_seed'], manifest['seed']+manifest['training_runs'])
             with (a/'runs.csv').open() as f:
@@ -91,6 +97,8 @@ class CliChecks(unittest.TestCase):
             with (original/'runs.csv').open() as f: expected=[r for r in csv.DictReader(f) if r['seed']=='7']
             with (replay/'runs.csv').open() as f: actual=list(csv.DictReader(f))
             self.assertEqual(len(actual),5)
+            with (replay/'tail_uncertainty.csv').open() as f:
+                self.assertEqual(list(csv.DictReader(f)), [])
             for before,after in zip(expected,actual):
                 self.assertEqual({k:v for k,v in before.items() if k!='regime'}, {k:v for k,v in after.items() if k!='regime'})
             self.assertIn('saved market tape',render(replay).read_text())

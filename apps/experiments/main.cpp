@@ -171,7 +171,9 @@ int main(int argc, char** argv) {
                  << "},\n\"regimes\":{\n";
         auto runs = file(root / "runs.csv"), summary = file(root / "summary.csv"),
              traces = file(root / "decisions.csv"), fill_output = file(root / "fills.csv"),
-             market = file(root / "market_events.csv");
+             market = file(root / "market_events.csv"),
+             tails = file(root / "tail_uncertainty.csv");
+        tails << "regime,policy,runs,resamples,bootstrap_seed,cvar95_lower_ticks,cvar95_upper_ticks\n";
         runs << "regime,seed,policy,requested,filled,residual,fill_rate,fill_notional,arrival_mid,"
                 "cost_ticks,final_mark,final_mid_available,fee_notional\n";
         summary << "regime,policy,runs,mean_ticks,standard_error_ticks,p95_ticks,cvar95_ticks,mean_"
@@ -226,7 +228,15 @@ int main(int argc, char** argv) {
                                << a.filled_before << ',' << a.decision.quantity << ','
                                << a.decision.market << ',' << a.decision.price << '\n';
             }
+            std::uint64_t policy_index = 0;
             for (const auto& [policy, sample] : costs) {
+                if (sample.size() >= 2) {
+                    const auto bootstrap_seed = o.seed ^ (0x5441494cULL + index * 100 + policy_index);
+                    const auto interval = bootstrap_cvar95(sample, bootstrap_seed);
+                    tails << name << ',' << policy << ',' << sample.size() << ",512,"
+                          << bootstrap_seed << ',' << interval.lower << ',' << interval.upper << '\n';
+                }
+                ++policy_index;
                 const auto risk = summarize(sample), paired = summarize(differences[policy]);
                 summary << name << ',' << policy << ',' << o.runs << ',' << risk.mean << ','
                         << risk.standard_error << ',' << risk.p95 << ',' << risk.cvar95 << ','
