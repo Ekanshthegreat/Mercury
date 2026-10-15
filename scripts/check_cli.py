@@ -29,7 +29,7 @@ class CliChecks(unittest.TestCase):
                 r = self.command('stress','--out',str(directory),'--runs','4','--seconds','3',
                                  '--candidates','2','--training-runs','3','--workers',workers)
                 self.assertEqual(r.returncode, 0, r.stderr)
-            for name in ['runs.csv','summary.csv','search.csv','decisions.csv','fills.csv','market_events.csv','tail_uncertainty.csv']:
+            for name in ['runs.csv','summary.csv','search.csv','decisions.csv','fills.csv','market_events.csv','tail_uncertainty.csv','paired_uncertainty.csv']:
                 self.assertEqual((a/name).read_bytes(), (b/name).read_bytes())
             with (a/'tail_uncertainty.csv').open() as f:
                 tails = list(csv.DictReader(f))
@@ -37,6 +37,27 @@ class CliChecks(unittest.TestCase):
             for row in tails:
                 self.assertEqual(int(row['resamples']), 512)
                 self.assertLessEqual(float(row['cvar95_lower_ticks']), float(row['cvar95_upper_ticks']))
+            with (a/'paired_uncertainty.csv').open() as f:
+                pairs = list(csv.DictReader(f))
+            self.assertEqual(len(pairs), 4*5)
+            for row in pairs:
+                self.assertEqual(row['baseline'], 'twap')
+                self.assertLessEqual(float(row['mean_difference_lower_ticks']), float(row['mean_difference_upper_ticks']))
+                if row['policy']=='twap':
+                    self.assertEqual(float(row['mean_difference_lower_ticks']), 0)
+                    self.assertEqual(float(row['mean_difference_upper_ticks']), 0)
+            report = render(a).read_text()
+            self.assertIn('95% bootstrap intervals', report)
+            self.assertIn('Paired mean intervals', report)
+            # A corrupt interval export must not silently become a confidence claim.
+            original = (a/'paired_uncertainty.csv').read_text()
+            lines = original.splitlines()
+            fields = lines[1].split(',')
+            fields[-1] = 'nan'
+            (a/'paired_uncertainty.csv').write_text(lines[0]+'\n'+','.join(fields)+'\n')
+            with self.assertRaisesRegex(ValueError, 'Invalid uncertainty row'):
+                render(a)
+            (a/'paired_uncertainty.csv').write_text(original)
             manifest = json.loads((a/'manifest.json').read_text())
             self.assertGreater(manifest['first_evaluation_seed'], manifest['seed']+manifest['training_runs'])
             with (a/'runs.csv').open() as f:
@@ -101,7 +122,10 @@ class CliChecks(unittest.TestCase):
                 self.assertEqual(list(csv.DictReader(f)), [])
             for before,after in zip(expected,actual):
                 self.assertEqual({k:v for k,v in before.items() if k!='regime'}, {k:v for k,v in after.items() if k!='regime'})
+            with (replay/'paired_uncertainty.csv').open() as f:
+                self.assertEqual(list(csv.DictReader(f)), [])
             self.assertIn('saved market tape',render(replay).read_text())
+            self.assertNotIn('95% bootstrap intervals', render(replay).read_text())
             damaged=root/'bad.mtape';data=bytearray(tape.read_bytes());data[0]=ord('X');damaged.write_bytes(data)
             failed=self.command('replay','--tape',str(damaged),'--out',str(root/'bad-results'))
             self.assertEqual(failed.returncode,2)

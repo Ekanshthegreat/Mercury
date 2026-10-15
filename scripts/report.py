@@ -40,6 +40,27 @@ def chart(rows, field, title):
     return '\n'.join(parts)
 
 
+def read_intervals(directory, name, lower, upper, summary):
+    path = directory / name
+    if not path.exists():
+        return {}
+    expected = {(row['regime'], row['policy']): int(row['runs']) for row in summary}
+    intervals = {}
+    with path.open(newline='') as stream:
+        for row in csv.DictReader(stream):
+            key = (row['regime'], row['policy'])
+            lo, hi = float(row[lower]), float(row[upper])
+            runs, resamples = int(row['runs']), int(row['resamples'])
+            seed = int(row['bootstrap_seed'])
+            if (key in intervals or key not in expected or runs != expected[key] or runs < 2
+                    or not 40 <= resamples <= 5000 or not 0 <= seed < 2**64
+                    or not math.isfinite(lo) or not math.isfinite(hi) or lo > hi
+                    or ('baseline' in row and row['baseline'] != 'twap')):
+                raise ValueError('Invalid uncertainty row in ' + name)
+            intervals[key] = (lo, hi, resamples)
+    return intervals
+
+
 def render(directory):
     manifest = json.loads((directory / 'manifest.json').read_text())
     with (directory / 'summary.csv').open(newline='') as f:
@@ -54,6 +75,8 @@ def render(directory):
     regimes = list(dict.fromkeys(row['regime'] for row in rows))
     if any(not re.fullmatch(r'[a-zA-Z0-9_-]+', name) for name in regimes):
         raise ValueError('Invalid regime name')
+    tails = read_intervals(directory, 'tail_uncertainty.csv', 'cvar95_lower_ticks', 'cvar95_upper_ticks', rows)
+    paired = read_intervals(directory, 'paired_uncertainty.csv', 'mean_difference_lower_ticks', 'mean_difference_upper_ticks', rows)
     options, panels = [], []
     for index, regime in enumerate(regimes):
         group = [r for r in rows if r['regime'] == regime]
@@ -68,11 +91,28 @@ def render(directory):
                 value = float(r[key]) * (100 if key == 'mean_fill_rate' else 1)
                 cells += f'<td>{value:.3f}{"%" if key == "mean_fill_rate" else ""}</td>'
             cells += '</tr>'
+        uncertainty_rows = ''
+        for row in group:
+            key = (regime, row['policy'])
+            if key not in tails and key not in paired:
+                continue
+            def interval_text(interval):
+                return f'[{interval[0]:.3f}, {interval[1]:.3f}] ({interval[2]} draws)' if interval else 'not exported'
+            uncertainty_rows += (f'<tr><th scope="row">{html.escape(row["policy"])}</th>'
+                                 f'<td>{interval_text(tails.get(key))}</td><td>{interval_text(paired.get(key))}</td></tr>')
+        uncertainty = ''
+        if uncertainty_rows:
+            uncertainty = ('<details open><summary>95% bootstrap intervals</summary><p class="interval-note">'
+                'Percentile intervals conditional on these observed runs. Paired differences resample per-seed '
+                'policy costs against TWAP; negative differences mean lower cost. Small holdouts may miss rare tails. '
+                'Intervals do not account for model error or regime selection.</p><div class="table-wrap"><table>'
+                '<thead><tr><th>Policy</th><th>CVaR95, ticks/share</th><th>Mean difference vs TWAP, ticks/share</th></tr></thead>'
+                f'<tbody>{uncertainty_rows}</tbody></table></div></details>')
         label = html.escape(regime.replace('_', ' ').title())
         options.append(f'<option value="{index}">{label}</option>')
         panels.append(f'''<section class="regime" data-index="{index}" {"hidden" if index else ""}>
 <h2>{label}</h2><div class="charts"><figure>{mean_svg}</figure><figure>{tail_svg}</figure></div>
-<div class="table-wrap"><table><thead><tr><th>Policy</th><th>Mean</th><th>SE</th><th>P95</th><th>CVaR95</th><th>Fill rate</th><th>Δ vs TWAP</th><th>Paired SE</th></tr></thead><tbody>{cells}</tbody></table></div></section>''')
+<div class="table-wrap"><table><thead><tr><th>Policy</th><th>Mean</th><th>SE</th><th>P95</th><th>CVaR95</th><th>Fill rate</th><th>Δ vs TWAP</th><th>Paired SE</th></tr></thead><tbody>{cells}</tbody></table></div>{uncertainty}</section>''')
     page = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mercury · Execution stress report</title><style>
 *{box-sizing:border-box}
@@ -98,7 +138,7 @@ thead th{font:12px system-ui,sans-serif;border-top:1px solid #454d3b;border-bott
 th:first-child{text-align:left}tbody th{font-weight:normal}tbody tr:hover{background:#f1f2ec}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.7 ui-monospace,monospace;background:#f1f2ec;padding:15px}
 a{color:#465b37;text-underline-offset:3px}a:hover{color:#222b1b}
-details{margin-top:16px}summary{cursor:pointer;font:12px system-ui,sans-serif}[hidden]{display:none!important}
+.interval-note{font:12px/1.7 system-ui,sans-serif;color:#65695d;max-width:900px;margin:12px 0}details{margin-top:16px}summary{cursor:pointer;font:12px system-ui,sans-serif}[hidden]{display:none!important}
 @media(max-width:760px){main{margin-top:22px;padding:0 18px}h1{font-size:25px}.charts{grid-template-columns:1fr;gap:18px}select{max-width:100%}th,td{padding:8px}.controls{gap:10px}}
 
 </style><main><header><span class="tag">MERCURY / EXECUTION STUDY</span><h1>Execution policy comparison</h1>
@@ -118,10 +158,12 @@ details{margin-top:16px}summary{cursor:pointer;font:12px system-ui,sans-serif}[h
         if mode == 'replay' else
         f'Mean error bars show one sample standard error. Δ vs TWAP uses paired seed differences; a negative number means lower cost. Tail estimates from {count} seeds are noisy: the worst 5% spans only {count*.05:g} observations, with fractional boundary weighting.'
     )
+    uncertainty_links = ' · '.join(f'<a href="{name}">{label}</a>' for name, label in [('tail_uncertainty.csv', 'CVaR95 intervals'), ('paired_uncertainty.csv', 'Paired mean intervals')] if (directory / name).is_file())
     page += f'''<aside class="notes"><h2>Method and interpretation</h2><p>{interpretation}</p>
 <p>Search uses {manifest['candidates']} candidates and {training} training seeds per candidate. Evaluation starts at seed {manifest['first_evaluation_seed']}; search and evaluation seeds are disjoint for stress runs. Neighbors change only market-order intensity by ±10% within the search bounds.</p>
 <p>External event times, prices, quantities and cancellation IDs are frozen before execution. Policy orders affect replayed queues and fills, but do not change external arrival rates. Fees are explicit per-filled-share inputs, not calibrated exchange schedules. No empirical calibration, price prediction, live trading or GPU performance is claimed.</p>
 <p><a href="runs.csv">Raw runs</a> · <a href="summary.csv">Summary</a> · <a href="decisions.csv">First-seed decisions</a> · <a href="fills.csv">Individual fills</a> · <a href="market_events.csv">First-seed market events</a> · <a href="manifest.json">Configuration</a></p>
+<p>Uncertainty exports: {uncertainty_links or "not included in this export"}</p>
 <p>Replay files: {tape_links or "not available in this export"}</p>
 <details><summary>Full configuration</summary><pre>{html.escape(json.dumps(manifest,indent=2))}</pre></details></aside>
 </main><script>document.querySelector('#regime').addEventListener('change',e=>{{document.querySelectorAll('.regime').forEach(p=>{{p.hidden=p.dataset.index!==e.target.value;}});}});</script></html>'''
