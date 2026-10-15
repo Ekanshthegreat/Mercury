@@ -60,4 +60,36 @@ inline TailInterval bootstrap_cvar95(const std::vector<double>& values, std::uin
     return {estimates[static_cast<std::size_t>(std::ceil(count * 0.025)) - 1],
             estimates[static_cast<std::size_t>(std::ceil(count * 0.975)) - 1]};
 }
+// Resample per-seed cost differences, keeping each policy/baseline pair intact.
+inline TailInterval bootstrap_paired_mean(const std::vector<double>& policy,
+                                         const std::vector<double>& baseline,
+                                         std::uint64_t seed, std::size_t resamples = 512) {
+    if (policy.size() != baseline.size() || policy.size() < 2 || policy.size() > 10000 ||
+        resamples < 40 || resamples > 5000 || policy.size() > 2000000 / resamples)
+        throw std::invalid_argument("Invalid paired bootstrap sample or resource budget");
+    std::vector<double> differences;
+    differences.reserve(policy.size());
+    for (std::size_t i = 0; i < policy.size(); ++i) {
+        const double difference = policy[i] - baseline[i];
+        if (!std::isfinite(policy[i]) || !std::isfinite(baseline[i]) || !std::isfinite(difference))
+            throw std::invalid_argument("Non-finite paired costs");
+        differences.push_back(difference);
+    }
+    std::sort(differences.begin(), differences.end());
+    Rng rng(seed);
+    std::vector<double> estimates;
+    estimates.reserve(resamples);
+    const double count = static_cast<double>(policy.size());
+    for (std::size_t b = 0; b < resamples; ++b) {
+        double mean = 0;
+        for (std::size_t i = 0; i < differences.size(); ++i)
+            mean += differences[static_cast<std::size_t>(rng.uniform_u64(differences.size()))] / count;
+        estimates.push_back(mean);
+    }
+    std::sort(estimates.begin(), estimates.end());
+    const double draws = static_cast<double>(resamples);
+    return {estimates[static_cast<std::size_t>(std::ceil(draws * 0.025)) - 1],
+            estimates[static_cast<std::size_t>(std::ceil(draws * 0.975)) - 1]};
+}
+
 }  // namespace mercury

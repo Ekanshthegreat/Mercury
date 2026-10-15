@@ -77,4 +77,28 @@ MERCURY_TEST(tail_bootstrap_rejects_invalid_samples_and_unbounded_work) {
     MERCURY_CHECK_THROWS(bootstrap_cvar95({1, 2}, 1, 5001));
     MERCURY_CHECK_THROWS(bootstrap_cvar95(std::vector<double>(10000, 1), 1, 5000));
 }
+MERCURY_TEST(paired_bootstrap_keeps_correlated_seed_costs_together) {
+    const auto interval = bootstrap_paired_mean({101, 201, 501, 901}, {100, 200, 500, 900}, 7);
+    MERCURY_CHECK_EQ(interval.lower, 1.0);
+    MERCURY_CHECK_EQ(interval.upper, 1.0);
+    const auto same = bootstrap_paired_mean({3, 6, 9}, {3, 6, 9}, 7);
+    MERCURY_CHECK_EQ(same.lower, 0.0);
+    MERCURY_CHECK_EQ(same.upper, 0.0);
+}
+MERCURY_TEST(paired_bootstrap_is_reproducible_when_pairs_are_reordered) {
+    const auto a = bootstrap_paired_mean({4, 9, 3, 11}, {5, 4, 2, 8}, 19);
+    const auto b = bootstrap_paired_mean({11, 3, 9, 4}, {8, 2, 4, 5}, 19);
+    MERCURY_CHECK_EQ(a.lower, b.lower);
+    MERCURY_CHECK_EQ(a.upper, b.upper);
+    MERCURY_CHECK(a.lower < a.upper);
+    MERCURY_CHECK(a.lower >= -1 && a.upper <= 5);
+}
+MERCURY_TEST(paired_bootstrap_rejects_invalid_or_unpaired_samples) {
+    MERCURY_CHECK_THROWS(bootstrap_paired_mean({1, 2}, {1}, 1));
+    MERCURY_CHECK_THROWS(bootstrap_paired_mean({1}, {1}, 1));
+    MERCURY_CHECK_THROWS(bootstrap_paired_mean({1, INFINITY}, {1, 2}, 1));
+    MERCURY_CHECK_THROWS(bootstrap_paired_mean({1, 2}, {1, 2}, 1, 39));
+    MERCURY_CHECK_THROWS(bootstrap_paired_mean({1, 2}, {1, 2}, 1, 5001));
+    MERCURY_CHECK_THROWS(bootstrap_paired_mean(std::vector<double>(10000, 1), std::vector<double>(10000, 1), 1, 5000));
+}
 MERCURY_MAIN()

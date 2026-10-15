@@ -172,7 +172,9 @@ int main(int argc, char** argv) {
         auto runs = file(root / "runs.csv"), summary = file(root / "summary.csv"),
              traces = file(root / "decisions.csv"), fill_output = file(root / "fills.csv"),
              market = file(root / "market_events.csv"),
-             tails = file(root / "tail_uncertainty.csv");
+             tails = file(root / "tail_uncertainty.csv"),
+             paired_output = file(root / "paired_uncertainty.csv");
+        paired_output << "regime,policy,baseline,runs,resamples,bootstrap_seed,mean_difference_lower_ticks,mean_difference_upper_ticks\n";
         tails << "regime,policy,runs,resamples,bootstrap_seed,cvar95_lower_ticks,cvar95_upper_ticks\n";
         runs << "regime,seed,policy,requested,filled,residual,fill_rate,fill_notional,arrival_mid,"
                 "cost_ticks,final_mark,final_mid_available,fee_notional\n";
@@ -235,6 +237,11 @@ int main(int argc, char** argv) {
                     const auto interval = bootstrap_cvar95(sample, bootstrap_seed);
                     tails << name << ',' << policy << ',' << sample.size() << ",512,"
                           << bootstrap_seed << ',' << interval.lower << ',' << interval.upper << '\n';
+                    const auto paired_seed = bootstrap_seed ^ 0x50414952ULL;
+                    const auto paired_interval = bootstrap_paired_mean(sample, costs.at("twap"), paired_seed);
+                    paired_output << name << ',' << policy << ",twap," << sample.size() << ",512,"
+                                  << paired_seed << ',' << paired_interval.lower << ','
+                                  << paired_interval.upper << '\n';
                 }
                 ++policy_index;
                 const auto risk = summarize(sample), paired = summarize(differences[policy]);
