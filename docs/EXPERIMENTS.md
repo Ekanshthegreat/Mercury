@@ -159,3 +159,25 @@ outcomes absent from the sample, correct model misspecification, or remove
 regime-selection bias. They are not paired policy-difference intervals or
 calibrated guarantees about real markets. Use larger independent holdouts for
 substantive tail comparisons.
+
+## Paired policy differences
+
+`paired_uncertainty.csv` records a 95% percentile-bootstrap interval for each
+policy's mean cost difference against TWAP, using 512 resamples. Costs are
+matched by evaluation seed before taking differences. Resampling these
+differences preserves the shared-market pairing; independently resampling the
+two policy cost vectors would discard that covariance. Negative values favor
+the policy. TWAP versus itself has an exactly zero interval.
+
+Rows record the regime, policy, baseline, number of runs, resample count,
+bootstrap seed and lower/upper bounds in ticks per parent-order share. The
+bootstrap uses the same resource limits and nearest-rank percentiles as the
+tail diagnostic. It estimates paired mean uncertainty, not uncertainty in a
+CVaR difference. One-tape replay writes a header without interval rows.
+
+The report reads the two optional uncertainty exports, validates finite ordered
+bounds and matching sample counts, and shows intervals beside the point
+estimates. Older exports still render without invented intervals. The
+committed reference includes both files; its original cost summaries are
+unchanged. These conditional intervals do not correct model misspecification,
+selection bias or an undersampled tail.

@@ -196,9 +196,22 @@ choices and limitations. Every table value comes from the committed
 [summary CSV](examples/reference/summary.csv), with the full configuration and
 build environment alongside it.
 
+## Uncertainty in the comparisons
+
+The report now displays 95% percentile-bootstrap intervals for CVaR95 and paired
+mean cost differences against TWAP. Each interval uses 512 deterministic
+resamples of the observed run costs. Paired comparisons keep the same seed's
+policy and TWAP costs together. The CSV exports record seeds, sample sizes and
+resample counts; single-tape replay does not estimate intervals.
+
+These are diagnostics conditional on the observed synthetic sample. At 128
+seeds, the empirical worst 5% spans only 6.4 observations. Bootstrap resampling
+cannot recover rare outcomes absent from those runs or account for model error
+and regime-selection bias. See [experiment notes](docs/EXPERIMENTS.md).
+
 ## Engineering checks
 
-There are 58 C++ test cases across six suites and four Python end-to-end checks.
+There are 64 C++ test cases across six suites and four Python end-to-end checks.
 They cover book invariants, randomized reference-model comparisons, deterministic
 simulation, exact fill accounting, passive queue priority, causal policy prefixes,
 residual quantity, serial/parallel equivalence, tape round trips, corruption

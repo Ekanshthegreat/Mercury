@@ -6,5 +6,11 @@
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "cmake": "cmake version 3.31.5",
   "command": "./build/mercury_experiment stress --out results/v03 --runs 128 --candidates 32 --training-runs 32 --workers 4",
-  "build": "Release; MERCURY_WERROR=ON"
+  "build": "Release; MERCURY_WERROR=ON",
+  "uncertainty_exports": {
+    "date": "2026-10-15",
+    "source_revision": "c0d6120224805cadc5ed8fbac481f66f0d849194",
+    "command": "./build/mercury_experiment stress --out results/oct15 --runs 128 --candidates 32 --training-runs 32 --workers 4",
+    "note": "Regenerated original summary verified identical before adding interval exports."
+  }
 }

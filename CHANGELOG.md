@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Export paired bootstrap intervals for mean cost differences against TWAP, retaining shared-seed covariance.
+- Display validated tail and paired intervals in the report; include both exports with the committed reference.
+
 - Deterministic empirical CVaR95 bootstrap intervals in `tail_uncertainty.csv`, with explicit seeds and bounded resampling.
 - Preserve original summaries and omit intervals for single-tape replay; document small-sample and model limitations.
 
