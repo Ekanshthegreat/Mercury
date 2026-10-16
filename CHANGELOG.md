@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reject truncated uncertainty exports, malformed headers, inconsistent run counts and nonzero TWAP self-comparisons before report generation.
+- Add report corruption regressions while preserving older exports without uncertainty files and single-tape replay.
+
 - Export paired bootstrap intervals for mean cost differences against TWAP, retaining shared-seed covariance.
 - Display validated tail and paired intervals in the report; include both exports with the committed reference.
 

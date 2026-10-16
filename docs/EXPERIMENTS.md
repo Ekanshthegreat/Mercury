@@ -181,3 +181,13 @@ estimates. Older exports still render without invented intervals. The
 committed reference includes both files; its original cost summaries are
 unchanged. These conditional intervals do not correct model misspecification,
 selection bias or an undersampled tail.
+
+An absent uncertainty file is supported for older exports. A present file must
+have its required columns and exactly one row for every summary policy/regime
+with at least two runs. Header-only files are valid for one-tape replay, not for
+multi-run experiments. Truncation, duplicate rows/columns, missing or extra cells,
+invalid resource budgets and nonzero TWAP-versus-itself intervals raise an error
+before any new report or charts are written. Summary counts must agree with the
+manifest, and paired rows must name TWAP as their baseline. These checks detect
+structural inconsistencies; they do not authenticate files or recompute bootstrap
+bounds from the raw runs.
