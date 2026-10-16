@@ -45,19 +45,34 @@ def read_intervals(directory, name, lower, upper, summary):
     if not path.exists():
         return {}
     expected = {(row['regime'], row['policy']): int(row['runs']) for row in summary}
+    paired = name == 'paired_uncertainty.csv'
+    required = {'regime', 'policy', 'runs', 'resamples', 'bootstrap_seed', lower, upper}
+    if paired:
+        required.add('baseline')
     intervals = {}
     with path.open(newline='') as stream:
-        for row in csv.DictReader(stream):
-            key = (row['regime'], row['policy'])
-            lo, hi = float(row[lower]), float(row[upper])
-            runs, resamples = int(row['runs']), int(row['resamples'])
-            seed = int(row['bootstrap_seed'])
+        reader = csv.DictReader(stream)
+        fields = reader.fieldnames or []
+        if not required.issubset(fields) or len(fields) != len(set(fields)):
+            raise ValueError('Invalid uncertainty header in ' + name)
+        for row in reader:
+            try:
+                key = (row['regime'], row['policy'])
+                lo, hi = float(row[lower]), float(row[upper])
+                runs, resamples = int(row['runs']), int(row['resamples'])
+                seed = int(row['bootstrap_seed'])
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError('Invalid uncertainty row in ' + name) from error
             if (key in intervals or key not in expected or runs != expected[key] or runs < 2
-                    or not 40 <= resamples <= 5000 or not 0 <= seed < 2**64
+                    or runs > 10000 or not 40 <= resamples <= 5000 or runs * resamples > 2000000
+                    or not 0 <= seed < 2**64 or None in row or None in row.values()
                     or not math.isfinite(lo) or not math.isfinite(hi) or lo > hi
-                    or ('baseline' in row and row['baseline'] != 'twap')):
+                    or (paired and row['baseline'] != 'twap')
+                    or (paired and row['policy'] == 'twap' and (lo != 0 or hi != 0))):
                 raise ValueError('Invalid uncertainty row in ' + name)
             intervals[key] = (lo, hi, resamples)
+    if set(intervals) != {key for key, runs in expected.items() if runs >= 2}:
+        raise ValueError('Incomplete uncertainty export in ' + name)
     return intervals
 
 
@@ -72,6 +87,11 @@ def render(directory):
     for row in rows:
         if any(not math.isfinite(float(row[key])) for key in numeric):
             raise ValueError('Non-finite summary')
+    keys = [(row['regime'], row['policy']) for row in rows]
+    if len(keys) != len(set(keys)):
+        raise ValueError('Duplicate summary policy/regime')
+    if any(int(row['runs']) != manifest['runs'] or int(row['runs']) < 1 for row in rows):
+        raise ValueError('Summary run count does not match manifest')
     regimes = list(dict.fromkeys(row['regime'] for row in rows))
     if any(not re.fullmatch(r'[a-zA-Z0-9_-]+', name) for name in regimes):
         raise ValueError('Invalid regime name')

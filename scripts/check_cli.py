@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import shutil
 import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -132,6 +133,120 @@ class CliChecks(unittest.TestCase):
             self.assertFalse((root/'bad-results'/'runs.csv').exists())
             self.assertEqual(self.command('replay','--tape',str(tape),'--seed','2').returncode,2)
             self.assertEqual(self.command('replay').returncode,2)
+
+class ReportChecks(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)
+        reference = Path(__file__).resolve().parent.parent / 'examples' / 'reference'
+        for name in ['manifest.json', 'summary.csv', 'tail_uncertainty.csv', 'paired_uncertainty.csv']:
+            shutil.copyfile(reference / name, self.directory / name)
+
+    def rewrite(self, name, change):
+        path = self.directory / name
+        with path.open(newline='') as stream:
+            reader = csv.DictReader(stream)
+            fields, rows = reader.fieldnames, list(reader)
+        fields, rows = change(fields, rows)
+        with path.open('w', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def test_rejects_truncated_and_empty_interval_exports(self):
+        for name in ['tail_uncertainty.csv', 'paired_uncertainty.csv']:
+            path = self.directory / name
+            original = path.read_text()
+            for keep in [1, 2, 20]:
+                with self.subTest(name=name, lines=keep):
+                    path.write_text('\n'.join(original.splitlines()[:keep]) + '\n')
+                    with self.assertRaisesRegex(ValueError, 'Incomplete uncertainty export'):
+                        render(self.directory)
+            path.write_text(original)
+
+    def test_rejects_missing_or_duplicate_interval_headers(self):
+        path = self.directory / 'paired_uncertainty.csv'
+        original = path.read_text()
+        path.write_text(original.replace('baseline,', '', 1))
+        with self.assertRaisesRegex(ValueError, 'Invalid uncertainty header'):
+            render(self.directory)
+        path.write_text(original.replace('baseline,', 'policy,', 1))
+        with self.assertRaisesRegex(ValueError, 'Invalid uncertainty header'):
+            render(self.directory)
+
+    def test_rejects_nonzero_self_comparison_and_invalid_baseline(self):
+        path = self.directory / 'paired_uncertainty.csv'
+        original = path.read_text()
+        def nonzero(fields, rows):
+            row = next(row for row in rows if row['policy'] == 'twap')
+            row['mean_difference_upper_ticks'] = '1'
+            return fields, rows
+        self.rewrite('paired_uncertainty.csv', nonzero)
+        with self.assertRaisesRegex(ValueError, 'Invalid uncertainty row'):
+            render(self.directory)
+        path.write_text(original.replace(',twap,128,', ',passive,128,', 1))
+        with self.assertRaisesRegex(ValueError, 'Invalid uncertainty row'):
+            render(self.directory)
+
+    def test_rejects_run_count_mismatch_and_duplicate_intervals(self):
+        path = self.directory / 'tail_uncertainty.csv'
+        original = path.read_text()
+        def bad_count(fields, rows):
+            rows[0]['runs'] = '127'
+            return fields, rows
+        self.rewrite(path.name, bad_count)
+        with self.assertRaisesRegex(ValueError, 'Invalid uncertainty row'):
+            render(self.directory)
+        path.write_text(original + original.splitlines()[1] + '\n')
+        with self.assertRaisesRegex(ValueError, 'Invalid uncertainty row'):
+            render(self.directory)
+
+    def test_rejects_duplicate_summary_and_manifest_disagreement(self):
+        path = self.directory / 'summary.csv'
+        original = path.read_text()
+        path.write_text(original + original.splitlines()[1] + '\n')
+        with self.assertRaisesRegex(ValueError, 'Duplicate summary'):
+            render(self.directory)
+        path.write_text(original)
+        manifest_path = self.directory / 'manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['runs'] += 1
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, 'Summary run count'):
+            render(self.directory)
+
+    def test_accepts_legacy_reports_without_interval_files(self):
+        for name in ['tail_uncertainty.csv', 'paired_uncertainty.csv']:
+            (self.directory / name).unlink()
+        report = render(self.directory).read_text()
+        self.assertNotIn('95% bootstrap intervals', report)
+        self.assertNotIn('paired_uncertainty.csv', report)
+
+    def test_rejects_short_rows_extra_cells_and_excessive_resampling(self):
+        path = self.directory / 'tail_uncertainty.csv'
+        original = path.read_text()
+        lines = original.splitlines()
+        for replacement in [','.join(lines[1].split(',')[:-1]), lines[1] + ',extra']:
+            with self.subTest(row=replacement):
+                path.write_text(lines[0] + '\n' + replacement + '\n' + '\n'.join(lines[2:]) + '\n')
+                with self.assertRaisesRegex(ValueError, 'Invalid uncertainty row'):
+                    render(self.directory)
+        path.write_text(original)
+        def budget(fields, rows):
+            for row in rows:
+                row['runs'] = '1000'
+                if 'resamples' in fields:
+                    row['resamples'] = '5000'
+            return fields, rows
+        self.rewrite('tail_uncertainty.csv', budget)
+        self.rewrite('summary.csv', budget)
+        manifest_path = self.directory / 'manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['runs'] = 1000
+        manifest_path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, 'Invalid uncertainty row'):
+            render(self.directory)
 
 if __name__ == '__main__':
     unittest.main()
