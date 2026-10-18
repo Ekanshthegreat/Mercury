@@ -134,4 +134,58 @@ MERCURY_TEST(fees_apply_to_executed_shares_and_rebates_have_correct_sign) {
     MERCURY_CHECK_EQ(partial.fee_notional, 1000.0);
     MERCURY_CHECK_EQ(partial.residual, 1000);
 }
+MERCURY_TEST(submission_latency_changes_arrival_book_and_equal_time_priority) {
+    auto tape = empty_tape();
+    // External buy consumes ask 1 exactly when the delayed buy arrives.
+    tape.events.push_back({second / 2, EventType::MarketBuy, 100, kNoPrice, 500, 500, 0, 0});
+    auto c = config(); c.quantity = 100;
+    const auto immediate = replay_execution(tape, Policy::Aggressive, c);
+    c.submission_latency = second / 2;
+    const auto delayed = replay_execution(tape, Policy::Aggressive, c);
+    MERCURY_CHECK_EQ(immediate.fill_notional, 100.0);
+    MERCURY_CHECK_EQ(delayed.fill_notional, 200.0);
+    MERCURY_CHECK_EQ(delayed.fills.front().time, second / 2);
+    MERCURY_CHECK_EQ(delayed.actions.front().time, 0);
+    MERCURY_CHECK_EQ(delayed.actions.front().arrival_time, second / 2);
+}
+MERCURY_TEST(long_latency_keeps_one_submission_in_flight_and_expires_at_deadline) {
+    auto c = config(); c.submission_latency = 2 * second;
+    const auto r = replay_execution(empty_tape(), Policy::Twap, c);
+    MERCURY_CHECK_EQ(r.actions.size(), 3u);  // t=0, 2, and mandatory t=4 closeout
+    MERCURY_CHECK_EQ(r.actions[0].arrival_time, 2 * second);
+    MERCURY_CHECK_EQ(r.actions[1].arrival_time, -1);  // t=4 arrival is preempted
+    MERCURY_CHECK_EQ(r.actions[1].arrived_quantity, 0);
+    MERCURY_CHECK_EQ(r.actions.back().arrival_time, c.horizon);
+    MERCURY_CHECK_EQ(r.filled, 600);
+    c.submission_latency = c.horizon + second;
+    const auto expired = replay_execution(empty_tape(), Policy::Aggressive, c);
+    MERCURY_CHECK_EQ(expired.actions.front().arrival_time, -1);
+    MERCURY_CHECK_EQ(expired.fills.front().time, c.horizon);
+}
+MERCURY_TEST(delayed_passive_order_misses_flow_before_arrival) {
+    auto tape = empty_tape();
+    tape.events.push_back({second / 2, EventType::MarketSell, 100, kNoPrice, 550, 550, 0, 0});
+    auto c = config(); c.submission_latency = 3 * second / 4;
+    const auto r = replay_execution(tape, Policy::Passive, c);
+    Quantity maker = 0;
+    for (const auto& fill : r.fills) if (fill.passive) maker += fill.quantity;
+    MERCURY_CHECK_EQ(maker, 0);
+    MERCURY_CHECK_EQ(r.filled + r.residual, c.quantity);
+}
+MERCURY_TEST(latency_does_not_leak_future_events_into_decisions) {
+    auto a = empty_tape(), b = a;
+    b.events.push_back({second / 2, EventType::MarketBuy, 100, kNoPrice, 500, 500, 0, 0});
+    auto c = config(); c.submission_latency = second;
+    for (auto policy : {Policy::Aggressive, Policy::Twap, Policy::Pov, Policy::Passive, Policy::Adaptive}) {
+        const auto x = replay_execution(a, policy, c), y = replay_execution(b, policy, c);
+        MERCURY_CHECK_EQ(x.actions[0].decision.quantity, y.actions[0].decision.quantity);
+        MERCURY_CHECK_EQ(x.actions[0].decision.price, y.actions[0].decision.price);
+        MERCURY_CHECK_EQ(x.actions[0].decision.market, y.actions[0].decision.market);
+        MERCURY_CHECK_EQ(y.filled + y.residual, c.quantity);
+    }
+    c.submission_latency = -1;
+    MERCURY_CHECK_THROWS(replay_execution(a, Policy::Twap, c));
+    c.submission_latency = 3600'000'000'001LL;
+    MERCURY_CHECK_THROWS(replay_execution(a, Policy::Twap, c));
+}
 MERCURY_MAIN()

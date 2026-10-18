@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <stdexcept>
 namespace mercury {
 namespace {
@@ -9,6 +10,7 @@ constexpr OrderId algo_base = OrderId{1} << 63;
 void validate(const ExecutionConfig& c) {
     if (c.quantity <= 0 || c.quantity > 1'000'000'000 || c.horizon <= 0 ||
         c.horizon > 3600'000'000'000LL || c.interval <= 0 || c.interval > c.horizon ||
+        c.submission_latency < 0 || c.submission_latency > 3600'000'000'000LL ||
         c.horizon / c.interval > 100000 || !std::isfinite(c.participation) ||
         c.participation <= 0 || c.participation > 1 || !std::isfinite(c.maker_fee) ||
         std::abs(c.maker_fee) > 1000 || !std::isfinite(c.taker_fee) || c.taker_fee < 0 ||
@@ -112,9 +114,26 @@ ExecutionResult replay_execution(const MarketTape& tape, Policy policy, const Ex
         }
         if (result.filled > c.quantity) throw std::logic_error("Execution overfill");
     };
+    auto arrive = [&](std::size_t index, Timestamp time) {
+        auto& action = result.actions[index];
+        action.arrival_time = time;
+        action.arrived_quantity = std::min(action.decision.quantity, c.quantity - result.filled);
+        if (action.arrived_quantity > 0) {
+            const auto order_id = next_algo++;
+            if (action.decision.market)
+                account(book.submit_market(c.side, action.arrived_quantity, 2, order_id, time));
+            else {
+                account(book.submit_limit(c.side, action.decision.price, action.arrived_quantity,
+                                          2, order_id, time));
+                passive_id = order_id;
+            }
+        }
+    };
     std::size_t cursor = 0;
-    for (Timestamp time = 0;; time = std::min(c.horizon, time + c.interval)) {
-        // Equal-time external events are observed before the scheduled decision.
+    std::optional<std::pair<std::size_t, Timestamp>> pending;
+    Timestamp next_decision = 0;
+    for (Timestamp time = 0;;) {
+        // External events win equal timestamps over both arrivals and decisions.
         while (cursor < tape.events.size() && tape.events[cursor].t <= time) {
             const auto& e = tape.events[cursor++];
             const Side side = (e.type == EventType::LimitBid || e.type == EventType::CancelBid ||
@@ -129,25 +148,33 @@ ExecutionResult replay_execution(const MarketTape& tape, Policy policy, const Ex
             } else
                 account(book.submit_limit(side, e.price, e.quantity, 1, e.order_id, e.t));
         }
-        if (passive_id) {
-            book.cancel(passive_id);
-            passive_id = 0;
+        if (time == c.horizon) pending.reset();  // hard deadline preempts late arrivals
+        if (pending && pending->second == time) {
+            arrive(pending->first, time);
+            pending.reset();
         }
-        const auto decision =
-            decide(policy, {time, result.filled, external_volume, book.top_of_book()}, c);
-        result.actions.push_back({time, decision, result.filled});
-        if (decision.quantity > 0) {
-            const auto order_id = next_algo++;
-            if (decision.market)
-                account(book.submit_market(c.side, decision.quantity, 2, order_id, time));
-            else {
-                account(book.submit_limit(c.side, decision.price, decision.quantity, 2, order_id,
-                                          time));
-                passive_id = order_id;
+        if (time == next_decision || time == c.horizon) {
+            // One submission in flight: do not accumulate stale budget decisions.
+            if (!pending) {
+                if (passive_id) {
+                    book.cancel(passive_id);
+                    passive_id = 0;
+                }
+                const auto decision =
+                    decide(policy, {time, result.filled, external_volume, book.top_of_book()}, c);
+                result.actions.push_back({time, decision, result.filled});
+                const auto index = result.actions.size() - 1;
+                if (time == c.horizon || c.submission_latency == 0)
+                    arrive(index, time);
+                else
+                    pending = {{index, time + c.submission_latency}};
             }
+            next_decision = std::min(c.horizon, next_decision + c.interval);
         }
         book.check_invariants();
         if (time == c.horizon) break;
+        time = next_decision;
+        if (pending) time = std::min(time, pending->second);
     }
     result.residual = c.quantity - result.filled;
     result.fill_rate = static_cast<double>(result.filled) / static_cast<double>(c.quantity);

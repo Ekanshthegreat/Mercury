@@ -11,6 +11,7 @@ struct ExecutionConfig {
     Quantity quantity{2000};
     Timestamp horizon{60'000'000'000LL};
     Timestamp interval{1'000'000'000LL};
+    Timestamp submission_latency{0};  // fixed one-way delay; cancels remain immediate
     double participation{0.15};
     double maker_fee{0.0};  // ticks per filled share; negative values model rebates
     double taker_fee{0.0};
@@ -31,6 +32,8 @@ struct Action {
     Timestamp time{};
     Decision decision;
     Quantity filled_before{};
+    Timestamp arrival_time{-1};  // -1 if the pending submission expired at the deadline
+    Quantity arrived_quantity{};
 };
 struct ExecutionFill {
     Timestamp time{};
