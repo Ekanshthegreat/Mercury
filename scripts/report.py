@@ -78,6 +78,9 @@ def read_intervals(directory, name, lower, upper, summary):
 
 def render(directory):
     manifest = json.loads((directory / 'manifest.json').read_text())
+    latency = manifest['execution'].get('submission_latency_ns', 0)
+    if not isinstance(latency, int) or isinstance(latency, bool) or not 0 <= latency <= 3600_000_000_000:
+        raise ValueError('Invalid submission latency in manifest')
     with (directory / 'summary.csv').open(newline='') as f:
         rows = list(csv.DictReader(f))
     if not rows:
@@ -181,6 +184,7 @@ a{color:#465b37;text-underline-offset:3px}a:hover{color:#222b1b}
     uncertainty_links = ' · '.join(f'<a href="{name}">{label}</a>' for name, label in [('tail_uncertainty.csv', 'CVaR95 intervals'), ('paired_uncertainty.csv', 'Paired mean intervals')] if (directory / name).is_file())
     page += f'''<aside class="notes"><h2>Method and interpretation</h2><p>{interpretation}</p>
 <p>Search uses {manifest['candidates']} candidates and {training} training seeds per candidate. Evaluation starts at seed {manifest['first_evaluation_seed']}; search and evaluation seeds are disjoint for stress runs. Neighbors change only market-order intensity by ±10% within the search bounds.</p>
+<p>Fixed submission delay: {latency / 1_000_000:g} ms. At most one submission is in flight; cancels are immediate. External events precede equal-time arrivals. At the deadline, pending submissions expire and the common immediate closeout runs. No feed delay, cancellation delay or network jitter is modeled.</p>
 <p>External event times, prices, quantities and cancellation IDs are frozen before execution. Policy orders affect replayed queues and fills, but do not change external arrival rates. Fees are explicit per-filled-share inputs, not calibrated exchange schedules. No empirical calibration, price prediction, live trading or GPU performance is claimed.</p>
 <p><a href="runs.csv">Raw runs</a> · <a href="summary.csv">Summary</a> · <a href="decisions.csv">First-seed decisions</a> · <a href="fills.csv">Individual fills</a> · <a href="market_events.csv">First-seed market events</a> · <a href="manifest.json">Configuration</a></p>
 <p>Uncertainty exports: {uncertainty_links or "not included in this export"}</p>

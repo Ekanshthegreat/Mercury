@@ -19,7 +19,8 @@ class CliChecks(unittest.TestCase):
     def test_rejects_invalid_arguments(self):
         for args in [('unknown',), ('compare','--runs','-1'), ('compare','--seconds','99999999999'),
                      ('stress','--seed','7junk'), ('compare','--workers','0'), ('compare','--side','both'),
-                     ('compare','--runs'), ('compare','--maker-fee','nan'), ('compare','--taker-fee','-1'), ('compare','--typo','1')]:
+                     ('compare','--runs'), ('compare','--latency-ms','-1'), ('compare','--latency-ms','3600001'),
+                     ('compare','--latency-ms','1.5'), ('compare','--maker-fee','nan'), ('compare','--taker-fee','-1'), ('compare','--typo','1')]:
             result = self.command(*args)
             self.assertEqual(result.returncode, 2, result.stdout+result.stderr)
 
@@ -107,6 +108,52 @@ class CliChecks(unittest.TestCase):
                     expected = (-1*(float(row['fill_notional'])+int(row['residual'])*float(row['final_mark'])
                             - q*float(row['arrival_mid'])) + 10*int(row['residual'])+float(row['fee_notional']))/q
                     self.assertAlmostEqual(expected,float(row['cost_ticks']))
+
+    def test_delayed_replay_and_parallel_runs_keep_exact_accounting(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            serial, parallel, replay = root/'serial', root/'parallel', root/'replay'
+            for directory, workers in [(serial, '1'), (parallel, '3')]:
+                result = self.command('compare', '--out', str(directory), '--runs', '4', '--seconds', '3',
+                    '--latency-ms', '250', '--workers', workers, '--side', 'sell', '--maker-fee', '-0.05', '--taker-fee', '0.15')
+                self.assertEqual(result.returncode, 0, result.stderr)
+            for name in ['runs.csv', 'summary.csv', 'decisions.csv', 'fills.csv', 'tail_uncertainty.csv', 'paired_uncertainty.csv']:
+                self.assertEqual((serial/name).read_bytes(), (parallel/name).read_bytes())
+            manifest = json.loads((serial/'manifest.json').read_text())
+            self.assertEqual(manifest['execution']['submission_latency_ns'], 250_000_000)
+            self.assertIn('Fixed submission delay: 250 ms', render(serial).read_text())
+            result = self.command('replay', '--tape', str(serial/'tapes'/'baseline.mtape'), '--out', str(replay),
+                '--latency-ms', '250', '--side', 'sell', '--maker-fee', '-0.05', '--taker-fee', '0.15')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with (serial/'runs.csv').open() as f:
+                expected = [row for row in csv.DictReader(f) if row['seed'] == '7']
+            with (replay/'runs.csv').open() as f:
+                actual = list(csv.DictReader(f))
+            self.assertEqual([{k:v for k,v in row.items() if k != 'regime'} for row in expected],
+                             [{k:v for k,v in row.items() if k != 'regime'} for row in actual])
+            with (serial/'decisions.csv').open() as f:
+                for row in csv.DictReader(f):
+                    time, arrival = int(row['time_ns']), int(row['arrival_time_ns'])
+                    self.assertEqual(arrival, time if time == 3_000_000_000 else time + 250_000_000)
+                    self.assertLessEqual(int(row['arrived_quantity']), int(row['submitted_quantity']))
+            from collections import defaultdict
+            fills = defaultdict(lambda: [0, 0., 0.])
+            with (serial/'fills.csv').open() as f:
+                for fill in csv.DictReader(f):
+                    key = (fill['seed'], fill['policy'])
+                    quantity = int(fill['quantity'])
+                    fills[key][0] += quantity
+                    fills[key][1] += quantity * float(fill['price'])
+                    fills[key][2] += quantity * (-.05 if fill['liquidity'] == 'maker' else .15)
+            with (serial/'runs.csv').open() as f:
+                for row in csv.DictReader(f):
+                    quantity, notional, fees = fills[(row['seed'], row['policy'])]
+                    self.assertEqual(quantity + int(row['residual']), int(row['requested']))
+                    self.assertAlmostEqual(notional, float(row['fill_notional']))
+                    self.assertAlmostEqual(fees, float(row['fee_notional']))
+                    expected_cost = (-(notional + int(row['residual']) * float(row['final_mark'])
+                        - int(row['requested']) * float(row['arrival_mid'])) + 10 * int(row['residual']) + fees) / int(row['requested'])
+                    self.assertAlmostEqual(expected_cost, float(row['cost_ticks']))
 
     def test_saved_tape_replay_matches_original_seed_and_rejects_corruption(self):
         with tempfile.TemporaryDirectory() as temp:

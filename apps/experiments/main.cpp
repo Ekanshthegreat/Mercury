@@ -42,7 +42,8 @@ void usage() {
            "  --seconds 1..300 --quantity 1..1000000 --workers 1..32\n"
            "  --candidates 1..100 --training-runs 2..256 (stress only)\n"
            "  --side buy|sell --maker-fee TICKS --taker-fee TICKS\n"
-           "  replay: --tape FILE [--out DIRECTORY] [quantity/side/fee options]\n"
+           "  --latency-ms 0..3600000 (fixed submission delay; cancels are immediate)\n"
+           "  replay: --tape FILE [--out DIRECTORY] [quantity/side/fee/latency options]\n"
            "Outputs run/summary CSV, full configuration JSON and decision traces.\n"
            "Stress optimizes TWAP CVaR95 on training seeds, evaluates separate holdout seeds.\n";
 }
@@ -84,7 +85,7 @@ int main(int argc, char** argv) {
             if (i + 1 == argc) throw std::invalid_argument("Missing value for " + key);
             const std::string value = argv[++i];
             if (mode == "replay" && key != "--tape" && key != "--out" && key != "--quantity" &&
-                key != "--side" && key != "--maker-fee" && key != "--taker-fee")
+                key != "--side" && key != "--maker-fee" && key != "--taker-fee" && key != "--latency-ms")
                 throw std::invalid_argument("Replay does not accept " + key);
             if (key == "--tape" && mode == "replay")
                 o.tape_path = value;
@@ -99,6 +100,8 @@ int main(int argc, char** argv) {
                     static_cast<Timestamp>(integer(value, 1, 300)) * 1'000'000'000;
             else if (key == "--quantity")
                 o.execution.quantity = static_cast<Quantity>(integer(value, 1, 1000000));
+            else if (key == "--latency-ms")
+                o.execution.submission_latency = static_cast<Timestamp>(integer(value, 0, 3600000)) * 1'000'000;
             else if (key == "--workers")
                 o.workers = integer(value, 1, 32);
             else if (key == "--candidates" && mode == "stress")
@@ -164,6 +167,7 @@ int main(int argc, char** argv) {
                  << "\",\"quantity\":" << o.execution.quantity
                  << ",\"horizon_ns\":" << o.execution.horizon
                  << ",\"interval_ns\":" << o.execution.interval
+                 << ",\"submission_latency_ns\":" << o.execution.submission_latency
                  << ",\"participation\":" << o.execution.participation
                  << ",\"maker_fee_ticks\":" << o.execution.maker_fee
                  << ",\"taker_fee_ticks\":" << o.execution.taker_fee
@@ -180,7 +184,7 @@ int main(int argc, char** argv) {
                 "cost_ticks,final_mark,final_mid_available,fee_notional\n";
         summary << "regime,policy,runs,mean_ticks,standard_error_ticks,p95_ticks,cvar95_ticks,mean_"
                    "fill_rate,paired_mean_vs_twap,paired_se_vs_twap\n";
-        traces << "regime,seed,policy,time_ns,filled_before,submitted_quantity,market,price\n";
+        traces << "regime,seed,policy,time_ns,filled_before,submitted_quantity,market,price,arrival_time_ns,arrived_quantity\n";
         fill_output << "regime,seed,policy,time_ns,quantity,price,liquidity\n";
         market << "regime,seed,time_ns,type,order_id,price,quantity,reference_filled,mid_before,"
                   "mid_after\n";
@@ -228,7 +232,8 @@ int main(int argc, char** argv) {
                     for (const auto& a : r.actions)
                         traces << name << ',' << t.seed << ',' << policy << ',' << a.time << ','
                                << a.filled_before << ',' << a.decision.quantity << ','
-                               << a.decision.market << ',' << a.decision.price << '\n';
+                               << a.decision.market << ',' << a.decision.price << ','
+                               << a.arrival_time << ',' << a.arrived_quantity << '\n';
             }
             std::uint64_t policy_index = 0;
             for (const auto& [policy, sample] : costs) {
