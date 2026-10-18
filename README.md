@@ -196,6 +196,21 @@ choices and limitations. Every table value comes from the committed
 [summary CSV](examples/reference/summary.csv), with the full configuration and
 build environment alongside it.
 
+## Submission-delay experiments
+
+Fixed order-submission delay is configurable with `--latency-ms`. Decision and
+arrival times are exported separately, with one instruction in flight and
+explicit deadline expiry. Cancels and deadline closeout remain immediate; this
+is not a complete network model. See [latency assumptions and results](docs/LATENCY.md).
+
+```sh
+python3 scripts/compare_latency.py --build build --out results/latency-study
+```
+
+The committed comparison uses 128 shared seeds at four delays, with raw runs and
+paired mean differences against zero delay. Shorter delays are not uniformly
+better in this synthetic sample.
+
 ## Uncertainty in the comparisons
 
 The report now displays 95% percentile-bootstrap intervals for CVaR95 and paired
@@ -211,7 +226,7 @@ and regime-selection bias. See [experiment notes](docs/EXPERIMENTS.md).
 
 ## Engineering checks
 
-There are 64 C++ test cases across six suites, four Python end-to-end checks and seven
+There are 68 C++ test cases across six suites, five Python end-to-end checks and seven
 report-integrity checks.
 They cover book invariants, randomized reference-model comparisons, deterministic
 simulation, exact fill accounting, passive queue priority, causal policy prefixes,
@@ -268,7 +283,7 @@ The model is not empirically calibrated. Search bounds are explicit synthetic
 assumptions. Policies have a common deadline market-closeout attempt; remaining
 shares are marked at the final valid mid with a 10-tick/share penalty and remain
 reported as unfilled. When a final two-sided mid is unavailable, the arrival mid
-is the documented fallback. Latency, hidden liquidity, adverse-selection
+is the documented fallback. Hidden liquidity, adverse-selection
 markouts and real trading connectivity are outside this release. Prices are in
 ticks around a zero arrival mid, so costs are reported in ticks rather than bps.
 

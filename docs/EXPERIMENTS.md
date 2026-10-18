@@ -191,3 +191,11 @@ before any new report or charts are written. Summary counts must agree with the
 manifest, and paired rows must name TWAP as their baseline. These checks detect
 structural inconsistencies; they do not authenticate files or recompute bootstrap
 bounds from the raw runs.
+
+## Submission delay
+
+`--latency-ms` applies a fixed one-way delay to order submission, with explicit
+arrival traces, skipped decision ticks while an instruction is pending, and
+deadline expiry. Default zero retains the original summaries. Cancels and
+deadline closeout remain immediate. See [latency semantics and the paired
+comparison](LATENCY.md) before interpreting delayed results.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed submission-delay replay with one instruction in flight, causal arrival ordering and explicit deadline expiry.
+- CLI latency controls, manifest metadata and actual arrival traces; zero-delay reference summaries remain unchanged.
+- Reproducible four-delay comparison with paired seed differences and committed raw runs.
+
 - Reject truncated uncertainty exports, malformed headers, inconsistent run counts and nonzero TWAP self-comparisons before report generation.
 - Add report corruption regressions while preserving older exports without uncertainty files and single-tape replay.
 

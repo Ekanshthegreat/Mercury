@@ -1,0 +1,170 @@
+{
+  "0": {
+    "format_version": 2,
+    "engine_version": "0.3.0",
+    "mode": "compare",
+    "seed": 7,
+    "first_evaluation_seed": 7,
+    "runs": 128,
+    "workers": 4,
+    "candidates": 0,
+    "training_runs": 0,
+    "execution": {
+      "side": "buy",
+      "quantity": 2000,
+      "horizon_ns": 60000000000,
+      "interval_ns": 1000000000,
+      "submission_latency_ns": 0,
+      "participation": 0.15,
+      "maker_fee_ticks": 0,
+      "taker_fee_ticks": 0,
+      "residual_penalty_ticks": 10
+    },
+    "regimes": {
+      "baseline": {
+        "limit_rate": 8,
+        "cancel_rate": 6,
+        "market_rate": 2.5,
+        "flow_imbalance": 0,
+        "initial_level_size": 500,
+        "mean_market_size": 120,
+        "cancel_imbalance_sensitivity": 1.2,
+        "market_imbalance_sensitivity": -0.8,
+        "limit_spread_sensitivity": 0.15,
+        "impact_ticks_per_unit": 0.05,
+        "hawkes_alpha": 0,
+        "hawkes_beta": 5,
+        "mean_limit_size": 200,
+        "initial_depth_levels": 10,
+        "initial_half_spread": 1,
+        "tick_size": 0.01
+      }
+    }
+  },
+  "50": {
+    "format_version": 2,
+    "engine_version": "0.3.0",
+    "mode": "compare",
+    "seed": 7,
+    "first_evaluation_seed": 7,
+    "runs": 128,
+    "workers": 4,
+    "candidates": 0,
+    "training_runs": 0,
+    "execution": {
+      "side": "buy",
+      "quantity": 2000,
+      "horizon_ns": 60000000000,
+      "interval_ns": 1000000000,
+      "submission_latency_ns": 50000000,
+      "participation": 0.15,
+      "maker_fee_ticks": 0,
+      "taker_fee_ticks": 0,
+      "residual_penalty_ticks": 10
+    },
+    "regimes": {
+      "baseline": {
+        "limit_rate": 8,
+        "cancel_rate": 6,
+        "market_rate": 2.5,
+        "flow_imbalance": 0,
+        "initial_level_size": 500,
+        "mean_market_size": 120,
+        "cancel_imbalance_sensitivity": 1.2,
+        "market_imbalance_sensitivity": -0.8,
+        "limit_spread_sensitivity": 0.15,
+        "impact_ticks_per_unit": 0.05,
+        "hawkes_alpha": 0,
+        "hawkes_beta": 5,
+        "mean_limit_size": 200,
+        "initial_depth_levels": 10,
+        "initial_half_spread": 1,
+        "tick_size": 0.01
+      }
+    }
+  },
+  "250": {
+    "format_version": 2,
+    "engine_version": "0.3.0",
+    "mode": "compare",
+    "seed": 7,
+    "first_evaluation_seed": 7,
+    "runs": 128,
+    "workers": 4,
+    "candidates": 0,
+    "training_runs": 0,
+    "execution": {
+      "side": "buy",
+      "quantity": 2000,
+      "horizon_ns": 60000000000,
+      "interval_ns": 1000000000,
+      "submission_latency_ns": 250000000,
+      "participation": 0.15,
+      "maker_fee_ticks": 0,
+      "taker_fee_ticks": 0,
+      "residual_penalty_ticks": 10
+    },
+    "regimes": {
+      "baseline": {
+        "limit_rate": 8,
+        "cancel_rate": 6,
+        "market_rate": 2.5,
+        "flow_imbalance": 0,
+        "initial_level_size": 500,
+        "mean_market_size": 120,
+        "cancel_imbalance_sensitivity": 1.2,
+        "market_imbalance_sensitivity": -0.8,
+        "limit_spread_sensitivity": 0.15,
+        "impact_ticks_per_unit": 0.05,
+        "hawkes_alpha": 0,
+        "hawkes_beta": 5,
+        "mean_limit_size": 200,
+        "initial_depth_levels": 10,
+        "initial_half_spread": 1,
+        "tick_size": 0.01
+      }
+    }
+  },
+  "1000": {
+    "format_version": 2,
+    "engine_version": "0.3.0",
+    "mode": "compare",
+    "seed": 7,
+    "first_evaluation_seed": 7,
+    "runs": 128,
+    "workers": 4,
+    "candidates": 0,
+    "training_runs": 0,
+    "execution": {
+      "side": "buy",
+      "quantity": 2000,
+      "horizon_ns": 60000000000,
+      "interval_ns": 1000000000,
+      "submission_latency_ns": 1000000000,
+      "participation": 0.15,
+      "maker_fee_ticks": 0,
+      "taker_fee_ticks": 0,
+      "residual_penalty_ticks": 10
+    },
+    "regimes": {
+      "baseline": {
+        "limit_rate": 8,
+        "cancel_rate": 6,
+        "market_rate": 2.5,
+        "flow_imbalance": 0,
+        "initial_level_size": 500,
+        "mean_market_size": 120,
+        "cancel_imbalance_sensitivity": 1.2,
+        "market_imbalance_sensitivity": -0.8,
+        "limit_spread_sensitivity": 0.15,
+        "impact_ticks_per_unit": 0.05,
+        "hawkes_alpha": 0,
+        "hawkes_beta": 5,
+        "mean_limit_size": 200,
+        "initial_depth_levels": 10,
+        "initial_half_spread": 1,
+        "tick_size": 0.01
+      }
+    }
+  }
+}

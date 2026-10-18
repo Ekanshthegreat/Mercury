@@ -1,0 +1,5 @@
+{
+  "engine_revision": "aee78b6a86c03f8b3439969acd2a06cdd601c479",
+  "command": "python3 scripts/compare_latency.py --build build --out results/latency-study --runs 128",
+  "note": "Synthetic baseline market; common seeds 7..134 across all delays. Aggregate files copied from this run; per-delay detailed artifacts can be regenerated."
+}
