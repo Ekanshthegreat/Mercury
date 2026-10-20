@@ -10,9 +10,56 @@ import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render
+from compare_latency import compare as compare_latency
 BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
 
 class CliChecks(unittest.TestCase):
+    def test_custom_latency_sweep_preserves_seed_pairs_and_execution_settings(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            output = root/'custom'
+            compare_latency(BUILD, output, runs=3, delays=[150, 0, 75], seed=19, side='sell', quantity=400)
+            manifests = json.loads((output/'configurations.json').read_text())
+            self.assertEqual(list(manifests), ['0', '75', '150'])
+            for delay, manifest in manifests.items():
+                self.assertEqual(manifest['seed'], 19)
+                self.assertEqual(manifest['execution']['side'], 'sell')
+                self.assertEqual(manifest['execution']['quantity'], 400)
+                self.assertEqual(manifest['execution']['submission_latency_ns'], int(delay)*1000000)
+            with (output/'runs.csv').open() as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 45)
+            for delay in ['0', '75', '150']:
+                for policy in ['aggressive', 'twap', 'pov', 'passive', 'adaptive']:
+                    selected = [r for r in rows if r['latency_ms']==delay and r['policy']==policy]
+                    self.assertEqual({r['seed'] for r in selected}, {'19', '20', '21'})
+                    self.assertTrue(all(int(r['requested'])==400 for r in selected))
+            with (output/'comparison.csv').open() as stream:
+                comparisons = list(csv.DictReader(stream))
+            self.assertEqual(len(comparisons), 15)
+            for row in comparisons:
+                if row['latency_ms']=='0':
+                    self.assertEqual(float(row['paired_mean_vs_zero']), 0)
+                    self.assertEqual(float(row['paired_se_vs_zero']), 0)
+            # Supplying delays in a different order must not change exported results.
+            other = root/'sorted'
+            compare_latency(BUILD, other, runs=3, delays=[0, 75, 150], seed=19, side='sell', quantity=400)
+            for name in ['runs.csv', 'comparison.csv', 'configurations.json']:
+                self.assertEqual((output/name).read_bytes(), (other/name).read_bytes())
+
+    def test_invalid_latency_study_settings_do_not_create_outputs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)/'invalid'
+            cases = [{'delays': [0]}, {'delays': [50, 100]}, {'delays': [0, 50, 50]},
+                     {'delays': [0, -1]}, {'delays': [0, 3600001]}, {'delays': [0, 1.5]},
+                     {'delays': list(range(9))}, {'seed': -1}, {'seed': 1000000001},
+                     {'runs': 1}, {'runs': 1001}, {'side': 'both'}, {'quantity': 0}, {'quantity': 1000001}]
+            for options in cases:
+                with self.subTest(options=options):
+                    with self.assertRaises(ValueError):
+                        compare_latency(BUILD, output, **options)
+                    self.assertFalse(output.exists())
+
     def command(self, *arguments):
         return subprocess.run([str(BUILD/'mercury_experiment'), *arguments], capture_output=True, text=True)
 
