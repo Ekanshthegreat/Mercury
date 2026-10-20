@@ -208,7 +208,8 @@ python3 scripts/compare_latency.py --build build --out results/latency-study
 ```
 
 The committed comparison uses 128 shared seeds at four delays, with raw runs and
-paired mean differences against zero delay. Shorter delays are not uniformly
+paired mean differences against zero delay. Custom delay grids, seeds, execution
+sides and quantities are supported by the helper. Shorter delays are not uniformly
 better in this synthetic sample.
 
 ## Uncertainty in the comparisons
@@ -226,7 +227,7 @@ and regime-selection bias. See [experiment notes](docs/EXPERIMENTS.md).
 
 ## Engineering checks
 
-There are 68 C++ test cases across six suites, five Python end-to-end checks and seven
+There are 68 C++ test cases across six suites, seven Python end-to-end checks and seven
 report-integrity checks.
 They cover book invariants, randomized reference-model comparisons, deterministic
 simulation, exact fill accounting, passive queue priority, causal policy prefixes,

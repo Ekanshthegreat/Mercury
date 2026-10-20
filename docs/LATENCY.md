@@ -50,6 +50,20 @@ summaries byte for byte locally.
 python3 scripts/compare_latency.py --build build --out results/latency-study --runs 128
 ```
 
+Use custom settings for a different parent order or delay grid:
+
+```sh
+python3 scripts/compare_latency.py --build build --out results/sell-delays --runs 64 --seed 19 --side sell --quantity 400 --delays-ms 0 75 150
+```
+
+The sweep accepts 2–8 unique integer delays from 0 to 3,600,000 ms, including
+zero for the paired baseline. Delays are sorted so input ordering does not change
+results. Run count is bounded to 2–1,000, starting seed to 0–1,000,000,000 and
+quantity to 1–1,000,000. Invalid settings fail before output creation. Every
+delay uses the same seed range and execution side/quantity; the manifests record
+those choices. Use a separate output directory for each study. The 60-second
+horizon, one-second decision interval and zero fees remain fixed in this helper.
+
 The script runs 0, 50, 250 and 1,000 ms against the baseline synthetic market,
 using common seeds 7–134 and all five policies. It keeps the default 2,000-share
 buy, 60-second horizon, one-second decision interval and zero fees. No stress

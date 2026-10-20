@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Configure latency-study delay grids, seed, execution side and quantity while keeping exact seed pairing.
+- Check invalid sweep budgets before creating outputs and verify order-independent reproduction in CI.
+
 - Fixed submission-delay replay with one instruction in flight, causal arrival ordering and explicit deadline expiry.
 - CLI latency controls, manifest metadata and actual arrival traces; zero-delay reference summaries remain unchanged.
 - Reproducible four-delay comparison with paired seed differences and committed raw runs.
