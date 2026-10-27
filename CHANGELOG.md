@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Validate latency-study seed coverage, unique policies, finite costs and quantity accounting before pairing results.
+- Require a new or empty study folder to preserve previous outputs; retain partial per-delay files for diagnosis on failure.
+
 - Configure latency-study delay grids, seed, execution side and quantity while keeping exact seed pairing.
 - Check invalid sweep budgets before creating outputs and verify order-independent reproduction in CI.
 

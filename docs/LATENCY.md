@@ -64,6 +64,21 @@ delay uses the same seed range and execution side/quantity; the manifests record
 those choices. Use a separate output directory for each study. The 60-second
 horizon, one-second decision interval and zero fees remain fixed in this helper.
 
+The output directory must be new or empty. An existing nonempty directory is
+rejected before starting the engine, preserving previous results rather than
+mixing them with a new study. If a run fails partway through, its per-delay
+files remain available for diagnosis; rerun into a new directory. Combined
+`runs.csv`, `comparison.csv` and `configurations.json` are written only after
+every delay has been read and validated.
+
+Before pairing, the helper requires exactly one finite cost per expected seed
+for each of the five policies, baseline regime labels, matching requested
+quantity and conserved filled/residual quantity. Summaries require all five
+policies exactly once, matching run counts, finite metrics and bounded fill
+rates. Duplicate headers, malformed cells, duplicate seeds and partial policy
+exports fail explicitly. These are structural checks, not authentication or an
+independent recomputation of all engine statistics.
+
 The script runs 0, 50, 250 and 1,000 ms against the baseline synthetic market,
 using common seeds 7–134 and all five policies. It keeps the default 2,000-share
 buy, 60-second horizon, one-second decision interval and zero fees. No stress
