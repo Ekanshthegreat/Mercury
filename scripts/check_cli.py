@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render
 from compare_latency import compare as compare_latency
+from compare_latency import read_run_costs, read_summary
 BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
 
 class CliChecks(unittest.TestCase):
@@ -227,6 +228,82 @@ class CliChecks(unittest.TestCase):
             self.assertFalse((root/'bad-results'/'runs.csv').exists())
             self.assertEqual(self.command('replay','--tape',str(tape),'--seed','2').returncode,2)
             self.assertEqual(self.command('replay').returncode,2)
+
+class LatencyInputChecks(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name)/'sample.csv'
+        self.runs = [{'regime':'baseline', 'policy':policy, 'seed':str(seed), 'cost_ticks':'1.5',
+                      'requested':'10', 'filled':'9', 'residual':'1'}
+                     for policy in ['aggressive','twap','pov','passive','adaptive'] for seed in [7,8]]
+        self.summaries = [{'regime':'baseline', 'policy':policy, 'runs':'2', 'mean_ticks':'1.5',
+                           'cvar95_ticks':'1.5', 'mean_fill_rate':'.9'}
+                          for policy in ['aggressive','twap','pov','passive','adaptive']]
+
+    def write(self, rows):
+        with self.path.open('w', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+            writer.writeheader(); writer.writerows(rows)
+
+    def test_accepts_complete_cost_samples_and_policy_summaries(self):
+        self.write(self.runs)
+        rows, costs = read_run_costs(self.path, 2, 7, 10)
+        self.assertEqual(len(rows), 10)
+        self.assertTrue(all(sample == {7:1.5,8:1.5} for sample in costs.values()))
+        self.write(self.summaries)
+        self.assertEqual(len(read_summary(self.path, 2)), 5)
+
+    def test_rejects_duplicate_and_missing_seeds(self):
+        self.write(self.runs + [self.runs[0]])
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            read_run_costs(self.path, 2, 7, 10)
+        self.write(self.runs[:-1])
+        with self.assertRaisesRegex(ValueError, 'seed coverage'):
+            read_run_costs(self.path, 2, 7, 10)
+
+    def test_rejects_invalid_seed_policy_cost_and_quantities(self):
+        for key, value in [('seed','9'), ('policy','unknown'), ('regime','selected'),
+                           ('cost_ticks','nan'), ('cost_ticks','inf'), ('cost_ticks',''),
+                           ('requested','20'), ('filled','11'), ('residual','-1')]:
+            with self.subTest(key=key, value=value):
+                rows = [dict(row) for row in self.runs]
+                rows[0][key] = value
+                self.write(rows)
+                with self.assertRaises(ValueError):
+                    read_run_costs(self.path, 2, 7, 10)
+
+    def test_rejects_duplicate_headers_and_malformed_cells(self):
+        self.write(self.runs)
+        lines = self.path.read_text().splitlines()
+        damaged = [lines[0].replace('cost_ticks','seed')+'\n'+'\n'.join(lines[1:]),
+                   lines[0]+'\n'+','.join(lines[1].split(',')[:-1]),
+                   lines[0]+'\n'+lines[1]+',extra']
+        for text in damaged:
+            with self.subTest(text=text):
+                self.path.write_text(text+'\n')
+                with self.assertRaises(ValueError):
+                    read_run_costs(self.path, 2, 7, 10)
+
+    def test_rejects_partial_duplicate_and_invalid_summaries(self):
+        for rows in [self.summaries[:-1], self.summaries+[self.summaries[0]]]:
+            self.write(rows)
+            with self.assertRaises(ValueError): read_summary(self.path, 2)
+        for key, value in [('runs','3'), ('mean_ticks','nan'), ('cvar95_ticks','inf'), ('mean_fill_rate','1.1')]:
+            rows = [dict(row) for row in self.summaries]; rows[0][key] = value
+            self.write(rows)
+            with self.assertRaises(ValueError): read_summary(self.path, 2)
+
+    def test_nonempty_output_is_preserved_before_any_engine_run(self):
+        from unittest.mock import patch
+        output = Path(self.temp.name)/'old-study'; output.mkdir()
+        sentinel = output/'comparison.csv'; sentinel.write_text('previous results')
+        with patch('compare_latency.subprocess.run') as run:
+            with self.assertRaisesRegex(ValueError, 'new or empty'):
+                compare_latency(BUILD, output, runs=2, delays=[0,50])
+            run.assert_not_called()
+        self.assertEqual(sentinel.read_text(), 'previous results')
+
 
 class ReportChecks(unittest.TestCase):
     def setUp(self):
