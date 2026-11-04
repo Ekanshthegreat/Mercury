@@ -207,6 +207,9 @@ is not a complete network model. See [latency assumptions and results](docs/LATE
 python3 scripts/compare_latency.py --build build --out results/latency-study
 ```
 
+Each successful study includes `summary.md` with settings, a readable result
+table and interpretation alongside its CSVs. [Read the committed example](examples/latency/summary.md).
+
 The committed comparison uses 128 shared seeds at four delays, with raw runs and
 paired mean differences against zero delay. Custom delay grids, seeds, execution
 sides and quantities are supported by the helper. Shorter delays are not uniformly

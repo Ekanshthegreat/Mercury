@@ -79,6 +79,14 @@ rates. Duplicate headers, malformed cells, duplicate seeds and partial policy
 exports fail explicitly. These are structural checks, not authentication or an
 independent recomputation of all engine statistics.
 
+Each successful study also writes `summary.md`: a portable Markdown table of
+cost, CVaR95, fill rate and paired differences, with the seed range, parent-order
+settings, units and model assumptions alongside it. Links point to the
+full-precision CSVs and configurations. It distinguishes standard errors from
+confidence intervals and does not rank policies or infer a real-market edge.
+The [committed example summary](../examples/latency/summary.md) uses the original
+128-seed comparison; its numerical CSVs are unchanged.
+
 The script runs 0, 50, 250 and 1,000 ms against the baseline synthetic market,
 using common seeds 7–134 and all five policies. It keeps the default 2,000-share
 buy, 60-second horizon, one-second decision interval and zero fees. No stress

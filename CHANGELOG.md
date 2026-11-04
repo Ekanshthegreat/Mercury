@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Write a portable Markdown summary for each latency study with settings, units, paired statistics and model boundaries.
+- Include the readable summary with the committed reference comparison; retain full-precision CSVs unchanged.
+
 - Validate latency-study seed coverage, unique policies, finite costs and quantity accounting before pairing results.
 - Require a new or empty study folder to preserve previous outputs; retain partial per-delay files for diagnosis on failure.
 
