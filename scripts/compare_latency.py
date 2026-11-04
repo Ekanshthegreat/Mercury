@@ -63,6 +63,34 @@ def read_summary(path, runs):
     return rows
 
 
+def study_markdown(comparisons, manifests):
+    baseline = manifests['0']
+    execution = baseline['execution']
+    first = baseline['first_evaluation_seed']
+    last = first + baseline['runs'] - 1
+    lines = ['# Mercury latency study', '',
+        'Synthetic baseline market; costs are ticks per parent-order share. Lower cost is better.', '',
+        f"- Parent order: {execution['quantity']:,} shares, {execution['side']}.",
+        f"- Shared evaluation seeds: {first}–{last} ({baseline['runs']} runs per delay/policy).",
+        f"- Horizon: {execution['horizon_ns']/1e9:g} s; decision interval: {execution['interval_ns']/1e9:g} s.",
+        f"- Maker fee: {execution['maker_fee_ticks']:g}; taker fee: {execution['taker_fee_ticks']:g} ticks per filled share.", '',
+        '| Delay, ms | Policy | Mean cost | CVaR95 | Fill rate | Paired mean vs 0 ms | Paired SE |',
+        '| ---: | --- | ---: | ---: | ---: | ---: | ---: |']
+    for row in comparisons:
+        lines.append(f"| {row['latency_ms']} | {row['policy']} | {float(row['mean_ticks']):.4f} | "
+            f"{float(row['cvar95_ticks']):.4f} | {100*float(row['mean_fill_rate']):.2f}% | "
+            f"{row['paired_mean_vs_zero']:.4f} | {row['paired_se_vs_zero']:.4f} |")
+    lines.extend(['',
+        'Paired differences compare the same policy and seed at each delay against zero delay. '
+        'Negative differences mean lower cost. Paired SE is a sample standard error, not a 95% confidence interval. '
+        'The CVaR95 columns are separate empirical tail estimates; their differences have no interval in this study.', '',
+        'Submission delay is fixed. Cancels and deadline closeout remain immediate, only one instruction is in flight, '
+        'and external order flow stays frozen during replay. Feed delay, network jitter and calibration to real venues '
+        'are not modeled. Small samples can miss rare tails; these results do not establish real-market performance.', '',
+        '[Full-precision comparison](comparison.csv) · [Raw runs](runs.csv) · [Configurations](configurations.json)', ''])
+    return '\n'.join(lines)
+
+
 def compare(build, output, runs=128, delays=(0, 50, 250, 1000), seed=7, side='buy', quantity=2000):
     if type(runs) is not int or not 2 <= runs <= 1000:
         raise ValueError('runs must be between 2 and 1000')
@@ -105,6 +133,7 @@ def compare(build, output, runs=128, delays=(0, 50, 250, 1000), seed=7, side='bu
             writer.writeheader()
             writer.writerows(rows)
     (output / 'configurations.json').write_text(json.dumps(manifests, indent=2) + '\n')
+    (output / 'summary.md').write_text(study_markdown(comparisons, manifests), encoding='utf-8')
     return output / 'comparison.csv'
 
 

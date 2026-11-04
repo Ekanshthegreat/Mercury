@@ -38,6 +38,12 @@ class CliChecks(unittest.TestCase):
             with (output/'comparison.csv').open() as stream:
                 comparisons = list(csv.DictReader(stream))
             self.assertEqual(len(comparisons), 15)
+            note = (output/'summary.md').read_text()
+            self.assertIn('400 shares, sell', note)
+            self.assertIn('19–21 (3 runs', note)
+            self.assertIn('| 75 | twap |', note)
+            self.assertIn('not a 95% confidence interval', note)
+            self.assertIn('[Raw runs](runs.csv)', note)
             for row in comparisons:
                 if row['latency_ms']=='0':
                     self.assertEqual(float(row['paired_mean_vs_zero']), 0)
@@ -45,7 +51,7 @@ class CliChecks(unittest.TestCase):
             # Supplying delays in a different order must not change exported results.
             other = root/'sorted'
             compare_latency(BUILD, other, runs=3, delays=[0, 75, 150], seed=19, side='sell', quantity=400)
-            for name in ['runs.csv', 'comparison.csv', 'configurations.json']:
+            for name in ['runs.csv', 'comparison.csv', 'configurations.json', 'summary.md']:
                 self.assertEqual((output/name).read_bytes(), (other/name).read_bytes())
 
     def test_invalid_latency_study_settings_do_not_create_outputs(self):
