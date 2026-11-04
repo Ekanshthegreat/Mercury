@@ -76,8 +76,12 @@ for each of the five policies, baseline regime labels, matching requested
 quantity and conserved filled/residual quantity. Summaries require all five
 policies exactly once, matching run counts, finite metrics and bounded fill
 rates. Duplicate headers, malformed cells, duplicate seeds and partial policy
-exports fail explicitly. These are structural checks, not authentication or an
-independent recomputation of all engine statistics.
+exports fail explicitly. The helper independently recomputes mean cost,
+fractionally weighted CVaR95 and mean fill rate from the validated runs and
+requires agreement with the summary within `1e-10` relative/absolute tolerance.
+Finite but inconsistent summaries fail before combined results are written.
+Other statistics, such as bootstrap bounds, are not recomputed by this check;
+the files are not authenticated.
 
 Each successful study also writes `summary.md`: a portable Markdown table of
 cost, CVaR95, fill rate and paired differences, with the seed range, parent-order

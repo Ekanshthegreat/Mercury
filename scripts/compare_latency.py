@@ -63,6 +63,29 @@ def read_summary(path, runs):
     return rows
 
 
+def reconcile_summary(summary, costs, run_rows):
+    fills = {policy: [] for policy in POLICIES}
+    for row in run_rows:
+        fills[row['policy']].append(int(row['filled']) / int(row['requested']))
+    for row in summary:
+        policy = row['policy']
+        values = sorted(costs[policy].values(), reverse=True)
+        mass = len(values) * .05
+        remaining = mass
+        weighted = []
+        for value in values:
+            if remaining <= 0:
+                break
+            weight = min(1., remaining)
+            weighted.append(value * weight)
+            remaining -= weight
+        expected = {'mean_ticks': statistics.mean(values), 'cvar95_ticks': math.fsum(weighted) / mass,
+                    'mean_fill_rate': statistics.mean(fills[policy])}
+        if any(not math.isclose(float(row[key]), value, rel_tol=1e-10, abs_tol=1e-10)
+               for key, value in expected.items()):
+            raise ValueError('Latency-study summary does not match raw runs: ' + policy)
+
+
 def study_markdown(comparisons, manifests):
     baseline = manifests['0']
     execution = baseline['execution']
@@ -117,7 +140,9 @@ def compare(build, output, runs=128, delays=(0, 50, 250, 1000), seed=7, side='bu
         all_runs.extend({'latency_ms': delay, **row} for row in rows)
         if delay == 0:
             baseline = by_policy
-        for row in read_summary(directory / 'summary.csv', runs):
+        summaries = read_summary(directory / 'summary.csv', runs)
+        reconcile_summary(summaries, by_policy, rows)
+        for row in summaries:
             policy = row['policy']
             if by_policy[policy].keys() != baseline[policy].keys():
                 raise ValueError('Unpaired latency experiment seeds')

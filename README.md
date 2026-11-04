@@ -231,7 +231,7 @@ and regime-selection bias. See [experiment notes](docs/EXPERIMENTS.md).
 ## Engineering checks
 
 There are 68 C++ test cases across six suites, seven Python end-to-end checks and seven
-report-integrity checks, plus six latency-input checks.
+report-integrity checks, plus eight latency-input checks.
 They cover book invariants, randomized reference-model comparisons, deterministic
 simulation, exact fill accounting, passive queue priority, causal policy prefixes,
 residual quantity, serial/parallel equivalence, tape round trips, corruption

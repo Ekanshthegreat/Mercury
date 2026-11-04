@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render
 from compare_latency import compare as compare_latency
-from compare_latency import read_run_costs, read_summary
+from compare_latency import read_run_costs, read_summary, reconcile_summary
 BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
 
 class CliChecks(unittest.TestCase):
@@ -236,6 +236,30 @@ class CliChecks(unittest.TestCase):
             self.assertEqual(self.command('replay').returncode,2)
 
 class LatencyInputChecks(unittest.TestCase):
+    def test_reconciles_summary_values_and_rejects_finite_disagreement(self):
+        self.write(self.runs)
+        rows, costs = read_run_costs(self.path, 2, 7, 10)
+        reconcile_summary(self.summaries, costs, rows)
+        for key, value in [('mean_ticks', '2'), ('cvar95_ticks', '2'), ('mean_fill_rate', '.8')]:
+            with self.subTest(key=key):
+                summaries = [dict(row) for row in self.summaries]
+                summaries[0][key] = value
+                with self.assertRaisesRegex(ValueError, 'does not match raw runs'):
+                    reconcile_summary(summaries, costs, rows)
+
+    def test_reconciliation_uses_fractional_tail_mass(self):
+        # 21 costs: worst 5% is one full observation and 0.05 of the next.
+        rows = [dict(self.runs[0], policy=policy, seed=str(seed), cost_ticks=str(seed))
+                for policy in ['aggressive','twap','pov','passive','adaptive'] for seed in range(1,22)]
+        self.write(rows)
+        rows, costs = read_run_costs(self.path, 21, 1, 10)
+        summaries = [dict(row, runs='21', mean_ticks='11', cvar95_ticks=str((21 + .05*20) / 1.05))
+                     for row in self.summaries]
+        reconcile_summary(summaries, costs, rows)
+        summaries[0]['cvar95_ticks'] = '21'
+        with self.assertRaisesRegex(ValueError, 'does not match raw runs'):
+            reconcile_summary(summaries, costs, rows)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
