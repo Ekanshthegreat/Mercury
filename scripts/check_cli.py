@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render
 from compare_latency import compare as compare_latency
-from compare_latency import read_run_costs, read_summary, reconcile_summary, validate_manifest
+from compare_latency import read_run_costs, read_summary, reconcile_summary, validate_manifest, reconcile_run_accounting
 BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
 
 class CliChecks(unittest.TestCase):
@@ -266,6 +266,21 @@ class LatencyManifestChecks(unittest.TestCase):
                 damaged[change] = 'different'
             with self.assertRaisesRegex(ValueError, 'differ beyond'):
                 validate_manifest(damaged, 128, 7, 'buy', 2000, 50, self.baseline)
+
+class LatencyAccountingChecks(unittest.TestCase):
+    def test_buy_sell_fees_and_residual_penalty_reconcile(self):
+        for side, cost in [('buy', '1.7'), ('sell', '.5')]:
+            row = dict(policy='twap', requested='10', filled='9', residual='1', fill_rate='.9',
+                       fill_notional='906', arrival_mid='100', final_mark='100', fee_notional='1', cost_ticks=cost)
+            reconcile_run_accounting([row], side)
+            for key, value in [('cost_ticks', '2'), ('fill_rate', '.8'), ('fill_notional', 'nan'),
+                               ('fee_notional', 'inf'), ('final_mark', '')]:
+                with self.subTest(side=side, key=key):
+                    with self.assertRaises(ValueError):
+                        reconcile_run_accounting([{**row, key: value}], side)
+            del row['arrival_mid']
+            with self.assertRaisesRegex(ValueError, 'accounting fields'):
+                reconcile_run_accounting([row], side)
 
 class LatencyInputChecks(unittest.TestCase):
     def test_reconciles_summary_values_and_rejects_finite_disagreement(self):

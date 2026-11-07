@@ -69,6 +69,25 @@ def read_run_costs(path, runs, seed, quantity):
     return rows, costs
 
 
+def reconcile_run_accounting(rows, side, residual_penalty=10):
+    """Recompute each exported cost and fill rate from its accounting fields."""
+    sign = 1 if side == 'buy' else -1
+    for row in rows:
+        try:
+            quantity, filled, residual = (int(row[key]) for key in ['requested', 'filled', 'residual'])
+            notional, arrival, mark, fees, rate, cost = (float(row[key]) for key in
+                ['fill_notional', 'arrival_mid', 'final_mark', 'fee_notional', 'fill_rate', 'cost_ticks'])
+        except (KeyError, ValueError, TypeError) as error:
+            raise ValueError('Invalid latency-study accounting fields') from error
+        if quantity <= 0 or not all(math.isfinite(value) for value in [notional, arrival, mark, fees, rate, cost]):
+            raise ValueError('Invalid latency-study accounting fields')
+        expected = (sign * (notional + residual * mark - quantity * arrival)
+                    + residual_penalty * residual + fees) / quantity
+        if (not math.isclose(cost, expected, rel_tol=1e-10, abs_tol=1e-10)
+                or not math.isclose(rate, filled / quantity, rel_tol=1e-10, abs_tol=1e-10)):
+            raise ValueError('Latency-study cost or fill rate disagrees with accounting: ' + row['policy'])
+
+
 def read_summary(path, runs):
     rows = read_rows(path, {'regime', 'policy', 'runs', 'mean_ticks', 'cvar95_ticks', 'mean_fill_rate'})
     seen = set()
@@ -164,6 +183,7 @@ def compare(build, output, runs=128, delays=(0, 50, 250, 1000), seed=7, side='bu
         validate_manifest(manifests[str(delay)], runs, seed, side, quantity, delay,
                           manifests['0'] if delay else None)
         rows, by_policy = read_run_costs(directory / 'runs.csv', runs, seed, quantity)
+        reconcile_run_accounting(rows, side)
         all_runs.extend({'latency_ms': delay, **row} for row in rows)
         if delay == 0:
             baseline = by_policy
