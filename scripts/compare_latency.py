@@ -7,6 +7,7 @@ import math
 import statistics
 import subprocess
 from pathlib import Path
+from study_integrity import write_checksums
 
 POLICY_ORDER = ('aggressive', 'twap', 'pov', 'passive', 'adaptive')
 POLICIES = set(POLICY_ORDER)
@@ -238,6 +239,7 @@ def compare(build, output, runs=128, delays=(0, 50, 250, 1000), seed=7, side='bu
             writer.writerows(rows)
     (output / 'configurations.json').write_text(json.dumps(manifests, indent=2) + '\n')
     (output / 'summary.md').write_text(study_markdown(comparisons, manifests), encoding='utf-8')
+    write_checksums(output)
     return output / 'comparison.csv'
 
 

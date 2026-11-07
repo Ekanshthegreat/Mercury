@@ -4,12 +4,14 @@ import argparse
 import json
 import math
 from pathlib import Path
+from study_integrity import verify_checksums
 from compare_latency import (POLICIES, read_rows, validate_manifest, validate_run_costs,
                              validate_summary, reconcile_run_accounting, reconcile_summary,
                              paired_statistics)
 
 
 def verify(directory):
+    verify_checksums(directory)
     manifests = json.loads((directory / 'configurations.json').read_text(encoding='utf-8'))
     if not isinstance(manifests, dict) or not 2 <= len(manifests) <= 8 or '0' not in manifests:
         raise ValueError('Invalid latency-study configurations')

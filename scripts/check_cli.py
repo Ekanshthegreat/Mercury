@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render
 from verify_latency import verify as verify_latency
+from study_integrity import write_checksums, verify_checksums
 from compare_latency import compare as compare_latency
 from compare_latency import read_run_costs, read_summary, reconcile_summary, validate_manifest, reconcile_run_accounting, paired_statistics
 BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
@@ -40,6 +41,8 @@ class CliChecks(unittest.TestCase):
             with (output/'comparison.csv').open() as stream:
                 comparisons = list(csv.DictReader(stream))
             self.assertEqual(len(comparisons), 15)
+            self.assertTrue(verify_checksums(output))
+            self.assertEqual(verify_latency(output)['total_runs'], 45)
             note = (output/'summary.md').read_text()
             self.assertIn('400 shares, sell', note)
             self.assertIn('19–21 (3 runs', note)
@@ -53,7 +56,7 @@ class CliChecks(unittest.TestCase):
             # Supplying delays in a different order must not change exported results.
             other = root/'sorted'
             compare_latency(BUILD, other, runs=3, delays=[0, 75, 150], seed=19, side='sell', quantity=400)
-            for name in ['runs.csv', 'comparison.csv', 'configurations.json', 'summary.md']:
+            for name in ['runs.csv', 'comparison.csv', 'configurations.json', 'summary.md', 'SHA256SUMS.txt']:
                 self.assertEqual((output/name).read_bytes(), (other/name).read_bytes())
 
     def test_invalid_latency_study_settings_do_not_create_outputs(self):
@@ -261,7 +264,30 @@ class SavedLatencyChecks(unittest.TestCase):
                          dict(delays=4, policies=5, runs_per_policy=128, total_runs=2560))
         self.assertEqual(before, {path.name: path.read_bytes() for path in self.directory.iterdir()})
 
+    def test_detects_changed_narrative_and_rejects_incomplete_checksum_inventories(self):
+        write_checksums(self.directory)
+        self.assertTrue(verify_checksums(self.directory))
+        path = self.directory/'summary.md'
+        original = path.read_bytes()
+        path.write_bytes(original + b'changed')
+        with self.assertRaisesRegex(ValueError, 'checksum mismatch: summary.md'):
+            verify_latency(self.directory)
+        path.write_bytes(original)
+        sums = self.directory/'SHA256SUMS.txt'
+        lines = sums.read_text().splitlines()
+        for text in ['\n'.join(lines[:-1]), '\n'.join(lines + [lines[0]]),
+                     '\n'.join(lines).replace('runs.csv', '../runs.csv')]:
+            sums.write_text(text + '\n')
+            with self.assertRaisesRegex(ValueError, 'checksum inventory'):
+                verify_checksums(self.directory)
+
+    def test_legacy_archives_still_receive_numerical_checks_without_checksums(self):
+        (self.directory/'SHA256SUMS.txt').unlink(missing_ok=True)
+        self.assertFalse(verify_checksums(self.directory))
+        self.assertEqual(verify_latency(self.directory)['total_runs'], 2560)
+
     def test_rejects_changed_costs_pairing_and_direction_counts(self):
+        (self.directory/'SHA256SUMS.txt').unlink(missing_ok=True)
         for name, key, value in [('runs.csv', 'cost_ticks', '999'),
                                  ('comparison.csv', 'paired_mean_vs_zero', '999'),
                                  ('comparison.csv', 'paired_higher_cost_runs', '999')]:
@@ -274,6 +300,7 @@ class SavedLatencyChecks(unittest.TestCase):
             path.write_bytes(original)
 
     def test_rejects_missing_rows_and_unconfigured_delays(self):
+        (self.directory/'SHA256SUMS.txt').unlink(missing_ok=True)
         path = self.directory/'runs.csv'; original = path.read_bytes()
         for change in [lambda rows: rows.pop(), lambda rows: rows[0].update(latency_ms='123')]:
             self.rewrite('runs.csv', change)
