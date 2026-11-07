@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Validate sweep manifests, raw cost accounting and stable seed/policy ordering before aggregating results.
+- Add paired lower/equal/higher cost counts without changing the original reference cost metrics.
+- Verify archived studies offline and checksum their four portable artifacts; exercise verification in CI and fresh-clone reproduction.
+
 - Reconcile latency-study mean cost, CVaR95 and fill rate against raw runs before writing aggregate results.
 
 - Write a portable Markdown summary for each latency study with settings, units, paired statistics and model boundaries.

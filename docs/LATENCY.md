@@ -89,7 +89,8 @@ settings, units and model assumptions alongside it. Links point to the
 full-precision CSVs and configurations. It distinguishes standard errors from
 confidence intervals and does not rank policies or infer a real-market edge.
 The [committed example summary](../examples/latency/summary.md) uses the original
-128-seed comparison; its numerical CSVs are unchanged.
+128-seed comparison. Its original numerical metrics are retained, with additional
+seed-level direction counts calculated from the committed raw runs.
 
 The script runs 0, 50, 250 and 1,000 ms against the baseline synthetic market,
 using common seeds 7–134 and all five policies. It keeps the default 2,000-share
@@ -119,3 +120,50 @@ one-second delay has higher mean cost here, but this does not establish a
 real-market latency premium. Flow is synthetic, external rates do not react to
 the trader, the decision grid is coarse and closeout is immediate. CVaR95 at 128
 seeds averages just 6.4 observations with fractional boundary weighting.
+
+## Verify a saved study
+
+```sh
+python3 scripts/verify_latency.py examples/latency
+python3 scripts/verify_latency.py results/latency-study
+```
+
+No engine binary, compiler or external Python packages are needed. A successful
+verification reports the number of delays, policies and raw runs. The command
+is read-only and exits with status 2 on invalid or missing inputs.
+
+The verifier checks:
+
+- Delay keys, run budgets and agreement between recorded and requested settings.
+  Every delay must retain the zero-delay engine version, market configuration
+  and execution settings, apart from submission delay itself.
+- Exactly one run for every policy/seed/delay, conserved quantities, finite
+  accounting fields, and cost reconstructed from fill notional, arrival price,
+  residual mark, fees and the ten-tick residual penalty.
+- Recomputed mean cost, empirical CVaR95, mean fill rate and paired mean/SE.
+  Comparisons use seed identity, and validated exports retain a fixed row order.
+- Lower/equal/higher cost counts, when included. These are exact comparisons of
+  exported costs, not significance tests; a small improvement and a large loss
+  each count once. Read them alongside effect size and tail cost.
+- SHA-256 checksums of `comparison.csv`, `configurations.json`, `runs.csv` and
+  `summary.md` when `SHA256SUMS.txt` is present. The inventory must list all four
+  files once. Newly generated studies include it; older studies still undergo
+  numerical checks without it.
+
+Checksums detect changes relative to the inventory, including edits to the
+narrative. They are not signatures: someone who edits both the files and inventory
+can replace them together. The verifier checks internal consistency; it does not
+recreate individual fills, validate bootstrap intervals, authenticate provenance
+or validate the market model. Per-delay tapes and traces are outside this
+four-file inventory.
+
+If verification fails, keep the original directory for diagnosis. Do not edit a
+cost or delete the checksum inventory to make a failed study pass. Regenerate the
+study into a new directory and compare the configurations and raw rows. For an
+intentional narrative edit, first verify the numerical artifacts, record the
+change in provenance, then regenerate the inventory with
+`study_integrity.write_checksums` from `scripts/`.
+
+CI verifies the committed archive and also generates and verifies a small custom
+sell-side sweep. The fresh-clone reproduction script checks the saved archive
+before building the engine.

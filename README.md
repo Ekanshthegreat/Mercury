@@ -205,15 +205,28 @@ is not a complete network model. See [latency assumptions and results](docs/LATE
 
 ```sh
 python3 scripts/compare_latency.py --build build --out results/latency-study
+python3 scripts/verify_latency.py results/latency-study
 ```
 
 Each successful study includes `summary.md` with settings, a readable result
-table and interpretation alongside its CSVs. [Read the committed example](examples/latency/summary.md).
+table, seed-level lower/equal/higher cost counts and interpretation alongside its CSVs. [Read the committed example](examples/latency/summary.md).
 
 The committed comparison uses 128 shared seeds at four delays, with raw runs and
 paired mean differences against zero delay. Custom delay grids, seeds, execution
 sides and quantities are supported by the helper. Shorter delays are not uniformly
 better in this synthetic sample.
+
+To inspect the saved example without a compiler or a simulator run, use Python
+3.10+ (standard library only):
+
+```sh
+python3 scripts/verify_latency.py examples/latency
+```
+
+The verifier checks file checksums when present, configuration consistency, seed
+coverage, run accounting, summary metrics and paired statistics. It reads files
+without modifying them. [Verification details and failure recovery](docs/LATENCY.md#verify-a-saved-study)
+explain its scope; this checks internal consistency, not real-market validity.
 
 ## Uncertainty in the comparisons
 
@@ -230,8 +243,8 @@ and regime-selection bias. See [experiment notes](docs/EXPERIMENTS.md).
 
 ## Engineering checks
 
-There are 68 C++ test cases across six suites, seven Python end-to-end checks and seven
-report-integrity checks, plus eight latency-input checks.
+There are 68 C++ test cases across six suites. Python checks exercise the CLI,
+report integrity, latency inputs, configuration checks and offline archive verification.
 They cover book invariants, randomized reference-model comparisons, deterministic
 simulation, exact fill accounting, passive queue priority, causal policy prefixes,
 residual quantity, serial/parallel equivalence, tape round trips, corruption

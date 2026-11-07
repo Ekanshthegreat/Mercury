@@ -19,6 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Verify archived latency study
+        run: python3 scripts/verify_latency.py examples/latency
       - name: Configure
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}

@@ -19,6 +19,8 @@ echo "== Mercury reproduce =="
 echo "project : ${PROJECT_ROOT}"
 echo "build   : ${BUILD_DIR}"
 
+python3 "${PROJECT_ROOT}/scripts/verify_latency.py" "${PROJECT_ROOT}/examples/latency"
+
 cmake -S "${PROJECT_ROOT}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
 cmake --build "${BUILD_DIR}" -j
 
