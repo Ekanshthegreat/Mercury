@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render
+from verify_latency import verify as verify_latency
 from compare_latency import compare as compare_latency
 from compare_latency import read_run_costs, read_summary, reconcile_summary, validate_manifest, reconcile_run_accounting, paired_statistics
 BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
@@ -235,6 +236,50 @@ class CliChecks(unittest.TestCase):
             self.assertFalse((root/'bad-results'/'runs.csv').exists())
             self.assertEqual(self.command('replay','--tape',str(tape),'--seed','2').returncode,2)
             self.assertEqual(self.command('replay').returncode,2)
+
+class SavedLatencyChecks(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)/'study'
+        source = Path(__file__).resolve().parents[1]/'examples/latency'
+        shutil.copytree(source, self.directory)
+
+    def rewrite(self, name, update):
+        path = self.directory/name
+        with path.open(newline='') as stream:
+            reader = csv.DictReader(stream)
+            fields, rows = reader.fieldnames, list(reader)
+        update(rows)
+        with path.open('w', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer.writeheader(); writer.writerows(rows)
+
+    def test_verifies_the_committed_study_without_writing_any_files(self):
+        before = {path.name: path.read_bytes() for path in self.directory.iterdir()}
+        self.assertEqual(verify_latency(self.directory),
+                         dict(delays=4, policies=5, runs_per_policy=128, total_runs=2560))
+        self.assertEqual(before, {path.name: path.read_bytes() for path in self.directory.iterdir()})
+
+    def test_rejects_changed_costs_pairing_and_direction_counts(self):
+        for name, key, value in [('runs.csv', 'cost_ticks', '999'),
+                                 ('comparison.csv', 'paired_mean_vs_zero', '999'),
+                                 ('comparison.csv', 'paired_higher_cost_runs', '999')]:
+            path = self.directory/name
+            original = path.read_bytes()
+            with self.subTest(key=key):
+                self.rewrite(name, lambda rows: rows[0].update({key: value}))
+                with self.assertRaises(ValueError):
+                    verify_latency(self.directory)
+            path.write_bytes(original)
+
+    def test_rejects_missing_rows_and_unconfigured_delays(self):
+        path = self.directory/'runs.csv'; original = path.read_bytes()
+        for change in [lambda rows: rows.pop(), lambda rows: rows[0].update(latency_ms='123')]:
+            self.rewrite('runs.csv', change)
+            with self.assertRaises(ValueError):
+                verify_latency(self.directory)
+            path.write_bytes(original)
 
 class LatencyManifestChecks(unittest.TestCase):
     def setUp(self):

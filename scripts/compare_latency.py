@@ -29,7 +29,10 @@ def validate_manifest(manifest, runs, seed, side, quantity, delay, baseline=None
                 raise ValueError('Latency-study manifest disagrees with requested settings: ' + key)
     if (not isinstance(manifest.get('engine_version'), str) or not manifest['engine_version']
             or not isinstance(manifest.get('regimes'), dict)
-            or set(manifest['regimes']) != {'baseline'} or not manifest['regimes']['baseline']):
+            or set(manifest['regimes']) != {'baseline'}
+            or not isinstance(manifest['regimes']['baseline'], dict) or not manifest['regimes']['baseline']
+            or any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+                   for value in manifest['regimes']['baseline'].values())):
         raise ValueError('Invalid latency-study engine or market configuration')
     if baseline is not None:
         normalized = {**manifest, 'execution': {**manifest['execution'], 'submission_latency_ns': 0}}
@@ -51,6 +54,10 @@ def read_rows(path, required):
 
 def read_run_costs(path, runs, seed, quantity):
     rows = read_rows(path, {'regime', 'policy', 'seed', 'cost_ticks', 'requested', 'filled', 'residual'})
+    return validate_run_costs(rows, runs, seed, quantity)
+
+
+def validate_run_costs(rows, runs, seed, quantity):
     costs = {policy: {} for policy in POLICIES}
     for row in rows:
         try:
@@ -92,6 +99,10 @@ def reconcile_run_accounting(rows, side, residual_penalty=10):
 
 def read_summary(path, runs):
     rows = read_rows(path, {'regime', 'policy', 'runs', 'mean_ticks', 'cvar95_ticks', 'mean_fill_rate'})
+    return validate_summary(rows, runs)
+
+
+def validate_summary(rows, runs):
     seen = set()
     for row in rows:
         try:
