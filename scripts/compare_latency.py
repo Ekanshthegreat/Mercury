@@ -140,7 +140,10 @@ def paired_statistics(costs, baseline):
     if not all(math.isfinite(value) for value in differences):
         raise ValueError('Non-finite paired latency difference')
     return {'paired_mean_vs_zero': statistics.mean(differences),
-            'paired_se_vs_zero': statistics.stdev(differences) / len(differences)**.5}
+            'paired_se_vs_zero': statistics.stdev(differences) / len(differences)**.5,
+            'paired_lower_cost_runs': sum(value < 0 for value in differences),
+            'paired_equal_cost_runs': sum(value == 0 for value in differences),
+            'paired_higher_cost_runs': sum(value > 0 for value in differences)}
 
 
 def study_markdown(comparisons, manifests):
@@ -160,7 +163,16 @@ def study_markdown(comparisons, manifests):
         lines.append(f"| {row['latency_ms']} | {row['policy']} | {float(row['mean_ticks']):.4f} | "
             f"{float(row['cvar95_ticks']):.4f} | {100*float(row['mean_fill_rate']):.2f}% | "
             f"{row['paired_mean_vs_zero']:.4f} | {row['paired_se_vs_zero']:.4f} |")
+    lines.extend(['', '## Seed-level comparisons', '',
+        '| Delay, ms | Policy | Lower cost than 0 ms | Equal cost | Higher cost |',
+        '| ---: | --- | ---: | ---: | ---: |'])
+    for row in comparisons:
+        lines.append(f"| {row['latency_ms']} | {row['policy']} | {row['paired_lower_cost_runs']} | "
+                     f"{row['paired_equal_cost_runs']} | {row['paired_higher_cost_runs']} |")
     lines.extend(['',
+        'Counts compare each seed with itself at zero delay, using the exported numerical costs. '
+        'They describe direction, not effect size or statistical significance. '
+        'All zero-delay comparisons are ties.', '',
         'Paired differences compare the same policy and seed at each delay against zero delay. '
         'Negative differences mean lower cost. Paired SE is a sample standard error, not a 95% confidence interval. '
         'The CVaR95 columns are separate empirical tail estimates; their differences have no interval in this study.', '',

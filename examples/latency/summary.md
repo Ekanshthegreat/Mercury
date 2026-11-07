@@ -30,6 +30,33 @@ Synthetic baseline market; costs are ticks per parent-order share. Lower cost is
 | 1000 | pov | 0.7486 | 4.5904 | 99.27% | -0.0396 | 0.0136 |
 | 1000 | twap | 1.0419 | 4.5304 | 96.51% | 0.0604 | 0.0063 |
 
+## Seed-level comparisons
+
+| Delay, ms | Policy | Lower cost than 0 ms | Equal cost | Higher cost |
+| ---: | --- | ---: | ---: | ---: |
+| 0 | adaptive | 0 | 128 | 0 |
+| 0 | aggressive | 0 | 128 | 0 |
+| 0 | passive | 0 | 128 | 0 |
+| 0 | pov | 0 | 128 | 0 |
+| 0 | twap | 0 | 128 | 0 |
+| 50 | adaptive | 18 | 63 | 47 |
+| 50 | aggressive | 12 | 88 | 28 |
+| 50 | passive | 6 | 112 | 10 |
+| 50 | pov | 35 | 66 | 27 |
+| 50 | twap | 33 | 61 | 34 |
+| 250 | adaptive | 14 | 50 | 64 |
+| 250 | aggressive | 43 | 14 | 71 |
+| 250 | passive | 13 | 70 | 45 |
+| 250 | pov | 39 | 59 | 30 |
+| 250 | twap | 32 | 51 | 45 |
+| 1000 | adaptive | 3 | 14 | 111 |
+| 1000 | aggressive | 57 | 0 | 71 |
+| 1000 | passive | 0 | 31 | 97 |
+| 1000 | pov | 51 | 54 | 23 |
+| 1000 | twap | 11 | 43 | 74 |
+
+Counts compare each seed with itself at zero delay, using the exported numerical costs. They describe direction, not effect size or statistical significance. All zero-delay comparisons are ties.
+
 Paired differences compare the same policy and seed at each delay against zero delay. Negative differences mean lower cost. Paired SE is a sample standard error, not a 95% confidence interval. The CVaR95 columns are separate empirical tail estimates; their differences have no interval in this study.
 
 Submission delay is fixed. Cancels and deadline closeout remain immediate, only one instruction is in flight, and external order flow stays frozen during replay. Feed delay, network jitter and calibration to real venues are not modeled. Small samples can miss rare tails; these results do not establish real-market performance.

@@ -333,9 +333,19 @@ class LatencyInputChecks(unittest.TestCase):
         self.write(list(reversed(self.summaries)))
         self.assertEqual(read_summary(self.path, 2), self.summaries)
 
+    def test_direction_counts_keep_ties_and_do_not_hide_magnitude(self):
+        stats = paired_statistics({1: -1., 2: 0., 3: 20.}, {1: 0., 2: 0., 3: 0.})
+        self.assertEqual(stats['paired_lower_cost_runs'], 1)
+        self.assertEqual(stats['paired_equal_cost_runs'], 1)
+        self.assertEqual(stats['paired_higher_cost_runs'], 1)
+        self.assertGreater(stats['paired_mean_vs_zero'], 0)
+        same = paired_statistics({1: 2., 2: 3.}, {1: 2., 2: 3.})
+        self.assertEqual(same['paired_equal_cost_runs'], 2)
+
     def test_pairing_uses_seed_identity_not_input_position(self):
         stats = paired_statistics({8: 7., 7: 2.}, {7: 1., 8: 4.})
-        self.assertEqual(stats, {'paired_mean_vs_zero': 2., 'paired_se_vs_zero': 1.})
+        self.assertEqual(stats, {'paired_mean_vs_zero': 2., 'paired_se_vs_zero': 1.,
+                                 'paired_lower_cost_runs': 0, 'paired_equal_cost_runs': 0, 'paired_higher_cost_runs': 2})
         with self.assertRaisesRegex(ValueError, 'Unpaired'):
             paired_statistics({7: 1., 9: 2.}, {7: 1., 8: 2.})
         with self.assertRaisesRegex(ValueError, 'Non-finite'):
