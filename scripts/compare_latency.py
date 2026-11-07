@@ -8,7 +8,8 @@ import statistics
 import subprocess
 from pathlib import Path
 
-POLICIES = {'aggressive', 'twap', 'pov', 'passive', 'adaptive'}
+POLICY_ORDER = ('aggressive', 'twap', 'pov', 'passive', 'adaptive')
+POLICIES = set(POLICY_ORDER)
 
 
 def validate_manifest(manifest, runs, seed, side, quantity, delay, baseline=None):
@@ -66,6 +67,7 @@ def read_run_costs(path, runs, seed, quantity):
     expected = set(range(seed, seed+runs))
     if any(set(sample) != expected for sample in costs.values()):
         raise ValueError('Incomplete latency-study seed coverage')
+    rows.sort(key=lambda row: (int(row['seed']), POLICY_ORDER.index(row['policy'])))
     return rows, costs
 
 
@@ -104,6 +106,7 @@ def read_summary(path, runs):
         seen.add(policy)
     if seen != POLICIES:
         raise ValueError('Incomplete latency-study policy summary')
+    rows.sort(key=lambda row: POLICY_ORDER.index(row['policy']))
     return rows
 
 
@@ -128,6 +131,16 @@ def reconcile_summary(summary, costs, run_rows):
         if any(not math.isclose(float(row[key]), value, rel_tol=1e-10, abs_tol=1e-10)
                for key, value in expected.items()):
             raise ValueError('Latency-study summary does not match raw runs: ' + policy)
+
+
+def paired_statistics(costs, baseline):
+    if costs.keys() != baseline.keys() or len(costs) < 2:
+        raise ValueError('Unpaired latency experiment seeds')
+    differences = [costs[seed] - baseline[seed] for seed in sorted(baseline)]
+    if not all(math.isfinite(value) for value in differences):
+        raise ValueError('Non-finite paired latency difference')
+    return {'paired_mean_vs_zero': statistics.mean(differences),
+            'paired_se_vs_zero': statistics.stdev(differences) / len(differences)**.5}
 
 
 def study_markdown(comparisons, manifests):
@@ -191,14 +204,10 @@ def compare(build, output, runs=128, delays=(0, 50, 250, 1000), seed=7, side='bu
         reconcile_summary(summaries, by_policy, rows)
         for row in summaries:
             policy = row['policy']
-            if by_policy[policy].keys() != baseline[policy].keys():
-                raise ValueError('Unpaired latency experiment seeds')
-            differences = [cost - baseline[policy][seed] for seed, cost in by_policy[policy].items()]
             comparisons.append({'latency_ms': delay, 'policy': policy, 'runs': runs,
                 'mean_ticks': row['mean_ticks'], 'cvar95_ticks': row['cvar95_ticks'],
                 'mean_fill_rate': row['mean_fill_rate'],
-                'paired_mean_vs_zero': statistics.mean(differences),
-                'paired_se_vs_zero': statistics.stdev(differences) / runs**.5})
+                **paired_statistics(by_policy[policy], baseline[policy])})
     for name, rows in [('runs.csv', all_runs), ('comparison.csv', comparisons)]:
         with (output / name).open('w', newline='') as stream:
             writer = csv.DictWriter(stream, fieldnames=list(rows[0]))

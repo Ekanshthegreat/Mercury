@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render
 from compare_latency import compare as compare_latency
-from compare_latency import read_run_costs, read_summary, reconcile_summary, validate_manifest, reconcile_run_accounting
+from compare_latency import read_run_costs, read_summary, reconcile_summary, validate_manifest, reconcile_run_accounting, paired_statistics
 BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
 
 class CliChecks(unittest.TestCase):
@@ -322,6 +322,24 @@ class LatencyInputChecks(unittest.TestCase):
         with self.path.open('w', newline='') as stream:
             writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
             writer.writeheader(); writer.writerows(rows)
+
+    def test_row_order_does_not_change_validated_exports(self):
+        self.write(self.runs)
+        original, costs = read_run_costs(self.path, 2, 7, 10)
+        self.write(list(reversed(self.runs)))
+        reordered, reordered_costs = read_run_costs(self.path, 2, 7, 10)
+        self.assertEqual(reordered, original)
+        self.assertEqual(reordered_costs, costs)
+        self.write(list(reversed(self.summaries)))
+        self.assertEqual(read_summary(self.path, 2), self.summaries)
+
+    def test_pairing_uses_seed_identity_not_input_position(self):
+        stats = paired_statistics({8: 7., 7: 2.}, {7: 1., 8: 4.})
+        self.assertEqual(stats, {'paired_mean_vs_zero': 2., 'paired_se_vs_zero': 1.})
+        with self.assertRaisesRegex(ValueError, 'Unpaired'):
+            paired_statistics({7: 1., 9: 2.}, {7: 1., 8: 2.})
+        with self.assertRaisesRegex(ValueError, 'Non-finite'):
+            paired_statistics({7: 1e308, 8: 0.}, {7: -1e308, 8: 0.})
 
     def test_accepts_complete_cost_samples_and_policy_summaries(self):
         self.write(self.runs)
