@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """End-to-end checks of CLI validation, CSV determinism and report rendering."""
+import copy
 import csv
 import json
 import subprocess
@@ -11,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render
 from compare_latency import compare as compare_latency
-from compare_latency import read_run_costs, read_summary, reconcile_summary
+from compare_latency import read_run_costs, read_summary, reconcile_summary, validate_manifest
 BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
 
 class CliChecks(unittest.TestCase):
@@ -234,6 +235,37 @@ class CliChecks(unittest.TestCase):
             self.assertFalse((root/'bad-results'/'runs.csv').exists())
             self.assertEqual(self.command('replay','--tape',str(tape),'--seed','2').returncode,2)
             self.assertEqual(self.command('replay').returncode,2)
+
+class LatencyManifestChecks(unittest.TestCase):
+    def setUp(self):
+        self.baseline = json.loads((Path(__file__).resolve().parents[1]/'examples/latency/configurations.json').read_text())['0']
+
+    def test_accepts_only_the_requested_sweep_configuration(self):
+        validate_manifest(self.baseline, 128, 7, 'buy', 2000, 0)
+        for key, value in [('runs', 127), ('seed', 8), ('mode', 'stress'), ('format_version', True)]:
+            manifest = copy.deepcopy(self.baseline)
+            manifest[key] = value
+            with self.assertRaises(ValueError):
+                validate_manifest(manifest, 128, 7, 'buy', 2000, 0)
+        for key, value in [('side', 'sell'), ('submission_latency_ns', 1), ('maker_fee_ticks', .1),
+                           ('quantity', 1999), ('horizon_ns', 1), ('residual_penalty_ticks', 0)]:
+            manifest = copy.deepcopy(self.baseline)
+            manifest['execution'][key] = value
+            with self.assertRaises(ValueError):
+                validate_manifest(manifest, 128, 7, 'buy', 2000, 0)
+
+    def test_rejects_market_or_engine_changes_between_delays(self):
+        manifest = copy.deepcopy(self.baseline)
+        manifest['execution']['submission_latency_ns'] = 50_000_000
+        validate_manifest(manifest, 128, 7, 'buy', 2000, 50, self.baseline)
+        for change in ['engine_version', 'regimes']:
+            damaged = copy.deepcopy(manifest)
+            if change == 'regimes':
+                damaged['regimes']['baseline']['market_rate'] += .1
+            else:
+                damaged[change] = 'different'
+            with self.assertRaisesRegex(ValueError, 'differ beyond'):
+                validate_manifest(damaged, 128, 7, 'buy', 2000, 50, self.baseline)
 
 class LatencyInputChecks(unittest.TestCase):
     def test_reconciles_summary_values_and_rejects_finite_disagreement(self):

@@ -11,6 +11,31 @@ from pathlib import Path
 POLICIES = {'aggressive', 'twap', 'pov', 'passive', 'adaptive'}
 
 
+def validate_manifest(manifest, runs, seed, side, quantity, delay, baseline=None):
+    """Check the actual engine configuration before pooling any results."""
+    expected = {'format_version': 2, 'mode': 'compare', 'seed': seed,
+                'first_evaluation_seed': seed, 'runs': runs, 'candidates': 0, 'training_runs': 0}
+    execution = {'side': side, 'quantity': quantity, 'horizon_ns': 60_000_000_000,
+                 'interval_ns': 1_000_000_000, 'submission_latency_ns': delay * 1_000_000,
+                 'participation': .15, 'maker_fee_ticks': 0, 'taker_fee_ticks': 0,
+                 'residual_penalty_ticks': 10}
+    if not isinstance(manifest, dict) or not isinstance(manifest.get('execution'), dict):
+        raise ValueError('Invalid latency-study manifest')
+    for actual, required in [(manifest, expected), (manifest['execution'], execution)]:
+        for key, value in required.items():
+            candidate = actual.get(key)
+            if isinstance(candidate, bool) or candidate != value:
+                raise ValueError('Latency-study manifest disagrees with requested settings: ' + key)
+    if (not isinstance(manifest.get('engine_version'), str) or not manifest['engine_version']
+            or not isinstance(manifest.get('regimes'), dict)
+            or set(manifest['regimes']) != {'baseline'} or not manifest['regimes']['baseline']):
+        raise ValueError('Invalid latency-study engine or market configuration')
+    if baseline is not None:
+        normalized = {**manifest, 'execution': {**manifest['execution'], 'submission_latency_ns': 0}}
+        if normalized != baseline:
+            raise ValueError('Latency-study configurations differ beyond submission delay')
+
+
 def read_rows(path, required):
     with path.open(newline='') as stream:
         reader = csv.DictReader(stream)
@@ -136,6 +161,8 @@ def compare(build, output, runs=128, delays=(0, 50, 250, 1000), seed=7, side='bu
                         '--latency-ms', str(delay), '--workers', '4', '--seed', str(seed),
                         '--side', side, '--quantity', str(quantity)], check=True)
         manifests[str(delay)] = json.loads((directory / 'manifest.json').read_text())
+        validate_manifest(manifests[str(delay)], runs, seed, side, quantity, delay,
+                          manifests['0'] if delay else None)
         rows, by_policy = read_run_costs(directory / 'runs.csv', runs, seed, quantity)
         all_runs.extend({'latency_ms': delay, **row} for row in rows)
         if delay == 0:
