@@ -10,11 +10,12 @@ import sys
 import time
 import unittest
 from gateway_client import Client, encode, receive
-BUILD = Path(sys.argv.pop(1)).resolve() if len(sys.argv) > 1 else Path('build').resolve()
+BUILD = Path('build').resolve()
 
 
 @contextmanager
-def server(build=BUILD):
+def server(build=None):
+    build = BUILD if build is None else build
     process = subprocess.Popen([str(build/'mercury_gateway'), '--port', '0'],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
@@ -90,4 +91,30 @@ class SocketChecks(unittest.TestCase):
             else: self.fail('Disconnected maker still has resting liquidity')
 
 
-if __name__ == '__main__': unittest.main()
+class BenchmarkChecks(unittest.TestCase):
+    def test_benchmark_keeps_raw_samples_and_excludes_warmup(self):
+        import csv
+        import json
+        import tempfile
+        from bench_gateway import benchmark
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)/'measurement'
+            summaries, manifest = benchmark(BUILD, output, clients=2, pairs=10, warmup=2)
+            with (output/'samples.csv').open() as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 40)
+            self.assertTrue(all(int(row['round_trip_ns']) > 0 for row in rows))
+            self.assertTrue(all(row['samples'] == 20 for row in summaries))
+            self.assertEqual(manifest['clients'], 2)
+            self.assertGreater(manifest['requests_per_second'], 0)
+            self.assertTrue(manifest['server_launched_by_benchmark'])
+            before = (output/'samples.csv').read_bytes()
+            with self.assertRaises(ValueError): benchmark(BUILD, output, clients=2, pairs=10)
+            self.assertEqual((output/'samples.csv').read_bytes(), before)
+            for options in [dict(clients=0), dict(pairs=1), dict(warmup=-1), dict(port=0)]:
+                with self.assertRaises(ValueError): benchmark(BUILD, Path(temp)/'bad', **options)
+            self.assertFalse((Path(temp)/'bad').exists())
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1: BUILD = Path(sys.argv.pop(1)).resolve()
+    unittest.main()
