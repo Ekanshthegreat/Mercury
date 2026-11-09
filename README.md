@@ -22,7 +22,7 @@ ctest --test-dir build --output-on-failure
 
 ```sh
 # Terminal 1
-./build/mercury_gateway --port 9090
+./build/mercury_gateway --port 9090 --journal gateway.wal
 
 # Terminal 2
 python3 scripts/gateway_client.py --port 9090 "LIMIT BUY 99 10 GTC" "TOP" "CANCEL 1"
@@ -45,9 +45,9 @@ flowchart LR
 ```
 
 The gateway and offline experiments are separate entry points into the same
-matching engine. The gateway is an in-memory loopback service: no venue
-connectivity, authentication, replication or durable order recovery. Disconnect
-cancels that connection's remaining orders. [Protocol and failure behavior](docs/GATEWAY.md).
+matching engine. The gateway is a loopback service with an optional write-ahead journal. Restart
+reconstructs fills and clears orphaned orders; disconnect cancels that connection's
+remaining orders. Venue connectivity, authentication and replication are outside it. [Protocol and failure behavior](docs/GATEWAY.md).
 
 ## Measure it
 

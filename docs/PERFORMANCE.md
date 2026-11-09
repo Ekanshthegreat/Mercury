@@ -72,3 +72,15 @@ Each client measured 1,000 pairs after 100 warmup pairs.
 These are individual short runs, not a capacity limit or before/after speedup.
 Higher concurrency increases throughput and latency here. The raw samples and
 manifest are retained so the summary can be recomputed.
+
+## Durable command path
+
+```sh
+python3 scripts/bench_gateway.py --build build --durable --clients 1 --pairs 100 --out results/tcp-durable
+```
+
+This includes a per-command journal fsync and saves `gateway.wal` alongside the
+samples. The manifest records `durable_journal`. Use smaller runs within the
+64 MiB journal limit; oversized configured workloads are rejected up front.
+The original saved measurements used the volatile path, so they are not latency
+claims for journaled execution. Compare runs with the same durability mode.

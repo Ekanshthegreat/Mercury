@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Deliver maker/taker execution reports through bounded cursor-based reads with explicit retention gaps.
+- Journal gateway commands before mutation; replay fills and clean up orphaned orders after process crashes.
+- Add corruption, file-lock and torn-write tests, plus a benchmark mode that includes journal fsync.
+
 - Add a single-writer TCP order gateway with framed requests, ownership checks and connection-scoped retries.
 - Add a Python client, socket integration tests and concurrent round-trip benchmarks with raw samples.
 - Document the protocol and Linux profiling workflow; exercise the network path in CI.
