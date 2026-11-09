@@ -82,7 +82,7 @@ def benchmark(build, output, clients=4, pairs=1000, warmup=100, port=None):
     output.mkdir(parents=True, exist_ok=True)
     for name, records in [('samples.csv',rows),('summary.csv',summaries)]:
         with (output/name).open('w', newline='') as stream:
-            writer=csv.DictWriter(stream,fieldnames=list(records[0]));writer.writeheader();writer.writerows(records)
+            writer=csv.DictWriter(stream,fieldnames=list(records[0]),lineterminator='\n');writer.writeheader();writer.writerows(records)
     (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     return summaries, manifest
 

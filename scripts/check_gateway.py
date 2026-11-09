@@ -128,6 +128,7 @@ class BenchmarkChecks(unittest.TestCase):
             self.assertGreater(manifest['requests_per_second'], 0)
             self.assertTrue(manifest['server_launched_by_benchmark'])
             before = (output/'samples.csv').read_bytes()
+            self.assertNotIn(b'\r', before)
             with self.assertRaises(ValueError): benchmark(BUILD, output, clients=2, pairs=10)
             self.assertEqual((output/'samples.csv').read_bytes(), before)
             for options in [dict(clients=0), dict(pairs=1), dict(warmup=-1), dict(port=0)]:
