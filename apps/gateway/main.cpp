@@ -1,4 +1,4 @@
-#include "engine/gateway/session.hpp"
+#include "engine/gateway/journal.hpp"
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
@@ -27,7 +27,7 @@ struct Descriptor {
 };
 struct Client {
     int fd;
-    mercury::GatewaySession session;
+    mercury::ParticipantId participant;
     std::string input, output;
 };
 void nonblocking(int fd) {
@@ -48,20 +48,37 @@ std::uint32_t frame_size(const std::string& bytes) {
 
 int main(int argc, char** argv) {
     int port = 9090;
-    if (argc == 2 && std::string(argv[1]) == "--help") {
-        std::cout << "mercury_gateway [--port 0..65535] (loopback only; 0 chooses a free port)\n";
-        return 0;
+    std::string journal, replay_path;
+    for (int n=1; n<argc; ++n) {
+        const std::string option = argv[n];
+        if (option == "--help") {
+            std::cout << "mercury_gateway [--port 0..65535] [--journal PATH] | --replay PATH\n";
+            return 0;
+        }
+        if (++n >= argc) return 2;
+        const std::string arg = argv[n];
+        if (option == "--journal") journal = arg;
+        else if (option == "--replay") replay_path = arg;
+        else if (option == "--port") {
+            const auto parsed = std::from_chars(arg.data(), arg.data()+arg.size(), port);
+            if (parsed.ec != std::errc{} || parsed.ptr != arg.data()+arg.size() || port < 0 || port > 65535) return 2;
+        } else return 2;
     }
-    if (argc != 1) {
-        if (argc != 3 || std::string(argv[1]) != "--port") return 2;
-        const std::string arg = argv[2];
-        auto result = std::from_chars(arg.data(), arg.data()+arg.size(), port);
-        if (result.ec != std::errc{} || result.ptr != arg.data()+arg.size() || port < 0 || port > 65535) return 2;
-    }
+    if (!replay_path.empty() && !journal.empty()) return 2;
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);
     std::signal(SIGPIPE, SIG_IGN);
     try {
+        if (!replay_path.empty()) {
+            std::cout << "participant,sequence,order_id,counterparty_order_id,side,price,quantity,liquidity\n";
+            mercury::GatewayService replay(replay_path, true, [](mercury::ParticipantId participant, std::string_view line) {
+                std::string fields(line.substr(5));
+                for (auto& byte : fields) if (byte == ' ') byte = ',';
+                std::cout << participant << ',' << fields << '\n';
+            });
+            return std::cout.good() ? 0 : 2;
+        }
+        mercury::GatewayService gateway(journal);
         Descriptor listener(::socket(AF_INET, SOCK_STREAM, 0));
         if (listener.value < 0) throw std::runtime_error("socket failed");
         int yes = 1;
@@ -77,11 +94,9 @@ int main(int argc, char** argv) {
         if (getsockname(listener.value, reinterpret_cast<sockaddr*>(&address), &length) < 0)
             throw std::runtime_error("getsockname failed");
         std::cout << "listening 127.0.0.1:" << ntohs(address.sin_port) << std::endl;
-        mercury::OrderGateway gateway;
-        mercury::ParticipantId next_participant = 1;
         std::vector<Client> clients;
         auto remove = [&](std::size_t index) {
-            gateway.disconnect(clients[index].session.participant);
+            gateway.disconnect(clients[index].participant);
             ::close(clients[index].fd);
             clients.erase(clients.begin() + static_cast<std::ptrdiff_t>(index));
         };
@@ -94,7 +109,7 @@ int main(int argc, char** argv) {
                     const auto size = frame_size(client.input);
                     if (size == 0 || size > 256) { invalid = true; break; }
                     if (client.input.size() < 4 + size || client.output.size() >= 32768) break;
-                    client.output += frame(gateway.process(client.session, std::string_view(client.input).substr(4, size)));
+                    client.output += frame(gateway.process(client.participant, std::string_view(client.input).substr(4, size)));
                     client.input.erase(0, 4 + size);
                 }
                 if (invalid) remove(i); else ++i;
@@ -135,12 +150,12 @@ int main(int argc, char** argv) {
             if (polls[0].revents & POLLIN) {
                 const int fd = ::accept(listener.value, nullptr, nullptr);
                 if (fd >= 0) {
-                    if (clients.size() >= 32 || next_participant == std::numeric_limits<mercury::ParticipantId>::max()) ::close(fd);
+                    if (clients.size() >= 32) ::close(fd);
                     else {
                         try { nonblocking(fd); }
                         catch (...) { ::close(fd); throw; }
                         setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
-                        clients.push_back({fd, {next_participant++, 0, {}, {}}, {}, {}});
+                        clients.push_back({fd, gateway.open(), {}, {}});
                     }
                 }
             }

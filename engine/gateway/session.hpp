@@ -1,5 +1,7 @@
 #pragma once
 #include <deque>
+#include <functional>
+#include <utility>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -15,6 +17,7 @@ struct GatewaySession {
 
 class OrderGateway {
 public:
+    explicit OrderGateway(std::function<void(ParticipantId, std::string_view)> sink = {}) : report_sink_(std::move(sink)) {}
     std::string process(GatewaySession& session, std::string_view command);
     void disconnect(ParticipantId participant);
     [[nodiscard]] const OrderBook& book() const { return book_; }
@@ -27,6 +30,7 @@ private:
                 OrderId counterparty, Side side, bool maker);
     std::unordered_map<ParticipantId, ReportBuffer> reports_;
     std::uint64_t report_sequence_{};
+    std::function<void(ParticipantId, std::string_view)> report_sink_;
     OrderBook book_;
     std::unordered_map<OrderId, ParticipantId> owners_;
     std::uint64_t sequence_{};

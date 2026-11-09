@@ -15,3 +15,6 @@ compile_commands.json
 
 results/
 __pycache__/
+
+# Local order gateway journal
+*.wal

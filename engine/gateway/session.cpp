@@ -120,6 +120,7 @@ void OrderGateway::report(ParticipantId participant, const Trade& trade, OrderId
     buffer.rows.emplace_back(number, "FILL " + std::to_string(number) + " " + std::to_string(order) +
         " " + std::to_string(counterparty) + " " + (side == Side::Buy ? "BUY" : "SELL") +
         " " + std::to_string(trade.price) + " " + std::to_string(trade.quantity) + " " + (maker ? "MAKER" : "TAKER"));
+    if (report_sink_) report_sink_(participant, buffer.rows.back().second);
     if (buffer.rows.size() > 1024) {
         buffer.dropped_through = buffer.rows.front().first;
         buffer.rows.pop_front();

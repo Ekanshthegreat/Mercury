@@ -14,9 +14,11 @@ BUILD = Path('build').resolve()
 
 
 @contextmanager
-def server(build=None):
+def server(build=None, journal=None, crash_on_exit=False):
     build = BUILD if build is None else build
-    process = subprocess.Popen([str(build/'mercury_gateway'), '--port', '0'],
+    arguments = [str(build/'mercury_gateway'), '--port', '0']
+    if journal is not None: arguments.extend(['--journal', str(journal)])
+    process = subprocess.Popen(arguments,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         with selectors.DefaultSelector() as selector:
@@ -28,13 +30,14 @@ def server(build=None):
             raise RuntimeError('Gateway did not bind loopback: ' + line)
         yield int(line.rsplit(':', 1)[1])
     finally:
-        process.terminate()
+        if crash_on_exit: process.kill()
+        else: process.terminate()
         try: process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             process.kill(); process.wait()
         errors = process.stderr.read()
         process.stdout.close(); process.stderr.close()
-        if process.returncode not in (0, -15):
+        if process.returncode not in ((0, -9) if crash_on_exit else (0, -15)):
             raise RuntimeError(f'Gateway exited {process.returncode}: {errors}')
 
 
@@ -103,6 +106,52 @@ class SocketChecks(unittest.TestCase):
                 time.sleep(.01)
             else: self.fail('Disconnected maker still has resting liquidity')
 
+
+class JournalChecks(unittest.TestCase):
+    def test_process_crash_replays_fills_and_cancels_orphaned_orders(self):
+        import csv
+        import io
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            journal = Path(temp)/'gateway.wal'
+            with server(journal=journal, crash_on_exit=True) as port:
+                maker, taker = Client(port), Client(port)
+                self.addCleanup(maker.close); self.addCleanup(taker.close)
+                maker.request('LIMIT SELL 101 10 GTC')
+                taker.request('MARKET BUY 4')
+                self.assertTrue(maker.request('TOP').endswith('101 6'))
+            original = journal.read_bytes()
+            replay = subprocess.run([str(BUILD/'mercury_gateway'), '--replay', str(journal)],capture_output=True,text=True)
+            self.assertEqual(replay.returncode,0,replay.stderr)
+            rows = list(csv.DictReader(io.StringIO(replay.stdout)))
+            self.assertEqual(len(rows),2)
+            self.assertEqual({row['liquidity'] for row in rows},{'MAKER','TAKER'})
+            self.assertTrue(all(row['quantity']=='4' for row in rows))
+            self.assertEqual(journal.read_bytes(),original)
+            # A partial final header was never applied and may be discarded at restart.
+            with journal.open('ab') as stream: stream.write(b'\x00\x00\x00')
+            with server(journal=journal) as port, Client(port) as client:
+                self.assertTrue(client.request('TOP').endswith('TOP NA 0 NA 0'))
+                self.assertIn('ACK 3 NEW',client.request('LIMIT BUY 99 1 GTC'))
+            replay2 = subprocess.run([str(BUILD/'mercury_gateway'),'--replay',str(journal)],capture_output=True,text=True)
+            self.assertEqual(replay2.returncode,0,replay2.stderr)
+            self.assertEqual(list(csv.DictReader(io.StringIO(replay2.stdout))),rows)
+
+    def test_active_journal_is_locked_and_corruption_fails_closed(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            journal=Path(temp)/'gateway.wal'
+            with server(journal=journal) as port, Client(port) as client:
+                client.request('LIMIT BUY 99 1 GTC')
+                other=subprocess.run([str(BUILD/'mercury_gateway'),'--replay',str(journal)],capture_output=True,text=True)
+                self.assertEqual(other.returncode,2)
+                self.assertIn('already in use',other.stderr)
+            damaged=bytearray(journal.read_bytes());damaged[-1] ^= 1;journal.write_bytes(damaged)
+            before=journal.read_bytes()
+            other=subprocess.run([str(BUILD/'mercury_gateway'),'--journal',str(journal),'--port','0'],capture_output=True,text=True)
+            self.assertEqual(other.returncode,2)
+            self.assertIn('checksum mismatch',other.stderr)
+            self.assertEqual(journal.read_bytes(),before)
 
 class BenchmarkChecks(unittest.TestCase):
     def test_committed_measurements_reconcile_against_raw_samples(self):
