@@ -153,7 +153,42 @@ class JournalChecks(unittest.TestCase):
             self.assertIn('checksum mismatch',other.stderr)
             self.assertEqual(journal.read_bytes(),before)
 
+    def test_corrupt_length_cannot_masquerade_as_an_incomplete_tail(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'gateway.wal'
+            with server(journal=path) as port, Client(port) as client: client.request('TOP')
+            data=bytearray(path.read_bytes())
+            data[len(b'MERCURY-WAL-1\n')+3] ^= 1
+            path.write_bytes(data)
+            result=subprocess.run([str(BUILD/'mercury_gateway'),'--journal',str(path),'--port','0'],capture_output=True,text=True)
+            self.assertEqual(result.returncode,2)
+            self.assertIn('header checksum mismatch',result.stderr)
+            self.assertEqual(path.read_bytes(),data)
+
+    def test_oversized_journals_are_rejected_before_loading(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'gateway.wal'
+            with path.open('wb') as stream: stream.truncate(64*1024*1024+1)
+            result=subprocess.run([str(BUILD/'mercury_gateway'),'--replay',str(path)],capture_output=True,text=True)
+            self.assertEqual(result.returncode,2)
+            self.assertIn('oversized',result.stderr)
+
 class BenchmarkChecks(unittest.TestCase):
+    def test_durable_measurement_keeps_an_auditable_journal(self):
+        import csv
+        import io
+        import tempfile
+        from bench_gateway import benchmark
+        with tempfile.TemporaryDirectory() as temp:
+            output=Path(temp)/'durable'
+            _, manifest=benchmark(BUILD,output,clients=1,pairs=10,warmup=2,durable=True)
+            self.assertTrue(manifest['durable_journal'])
+            result=subprocess.run([str(BUILD/'mercury_gateway'),'--replay',str(output/'gateway.wal')],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(list(csv.DictReader(io.StringIO(result.stdout))),[])
+
     def test_committed_measurements_reconcile_against_raw_samples(self):
         import csv
         import json

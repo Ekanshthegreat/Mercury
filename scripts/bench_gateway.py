@@ -22,7 +22,7 @@ def percentile(values, fraction):
     return ordered[max(0, math.ceil(len(ordered)*fraction)-1)]
 
 
-def benchmark(build, output, clients=4, pairs=1000, warmup=100, port=None):
+def benchmark(build, output, clients=4, pairs=1000, warmup=100, port=None, durable=False):
     if (type(clients) is not int or not 1 <= clients <= 16 or type(pairs) is not int
             or not 10 <= pairs <= 100000 or type(warmup) is not int or not 0 <= warmup <= 10000):
         raise ValueError('Use 1–16 clients, 10–100,000 pairs/client and 0–10,000 warmup pairs')
@@ -30,6 +30,11 @@ def benchmark(build, output, clients=4, pairs=1000, warmup=100, port=None):
         raise ValueError('Choose a new or empty output directory')
     if port is not None and (type(port) is not int or not 1 <= port <= 65535):
         raise ValueError('Use a loopback port in 1–65535')
+    if type(durable) is not bool or (durable and port is not None):
+        raise ValueError('Durable benchmarks must launch their own gateway')
+    if durable and clients * (pairs + warmup) * 2 * 128 > 60 * 1024 * 1024:
+        raise ValueError('Durable workload exceeds the journal budget; reduce pairs or clients')
+    if durable: output.mkdir(parents=True, exist_ok=True)
     launched = port is None
     barrier = threading.Barrier(clients)
     def worker(port, client_id):
@@ -52,7 +57,7 @@ def benchmark(build, output, clients=4, pairs=1000, warmup=100, port=None):
             started = time.perf_counter_ns()
             for n in range(pairs): pair(n, True)
             return rows, started, time.perf_counter_ns()
-    with (server(build) if port is None else nullcontext(port)) as port, ThreadPoolExecutor(max_workers=clients) as pool:
+    with (server(build, journal=output/'gateway.wal' if durable else None) if port is None else nullcontext(port)) as port, ThreadPoolExecutor(max_workers=clients) as pool:
         futures = [pool.submit(worker, port, number) for number in range(clients)]
         results = [future.result() for future in futures]
     rows = [row for result, _, _ in results for row in result]
@@ -64,7 +69,7 @@ def benchmark(build, output, clients=4, pairs=1000, warmup=100, port=None):
                               p50_ns=percentile(values,.5), p95_ns=percentile(values,.95), p99_ns=percentile(values,.99)))
     manifest = dict(format_version=1, platform=platform.platform(), machine=platform.machine(),
         python=platform.python_version(), clients=clients, pairs_per_client=pairs, warmup_pairs_per_client=warmup,
-        server_launched_by_benchmark=launched, tcp_nodelay=True, measured_seconds=duration, requests_per_second=len(rows)/duration,
+        server_launched_by_benchmark=launched, durable_journal=durable, tcp_nodelay=True, measured_seconds=duration, requests_per_second=len(rows)/duration,
         workload='closed-loop non-crossing limit submit/cancel pairs; one outstanding request/client',
         scope='client framing, TCP loopback, server poll loop, matching and response parsing; not exchange latency')
     try: manifest['revision'] = subprocess.check_output(['git','rev-parse','HEAD'],cwd=Path(__file__).resolve().parents[1],text=True).strip()
@@ -92,11 +97,12 @@ if __name__ == '__main__':
     parser.add_argument('--build',type=Path,default=Path('build'))
     parser.add_argument('--out',type=Path,default=Path('results/gateway-benchmark'))
     parser.add_argument('--port',type=int,help='benchmark an already-running loopback gateway')
+    parser.add_argument('--durable',action='store_true',help='include per-command fsync and save the journal')
     parser.add_argument('--clients',type=int,default=4)
     parser.add_argument('--pairs',type=int,default=1000)
     parser.add_argument('--warmup',type=int,default=100)
     args=parser.parse_args()
     try:
-        summaries, manifest=benchmark(args.build.resolve(),args.out,args.clients,args.pairs,args.warmup,args.port)
+        summaries, manifest=benchmark(args.build.resolve(),args.out,args.clients,args.pairs,args.warmup,args.port,args.durable)
     except (OSError,ValueError,RuntimeError) as error: parser.error(str(error))
     print(json.dumps(dict(summary=summaries,requests_per_second=manifest['requests_per_second']),indent=2))
