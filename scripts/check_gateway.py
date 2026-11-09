@@ -92,6 +92,25 @@ class SocketChecks(unittest.TestCase):
 
 
 class BenchmarkChecks(unittest.TestCase):
+    def test_committed_measurements_reconcile_against_raw_samples(self):
+        import csv
+        import json
+        import statistics
+        from bench_gateway import percentile
+        for label in ['one-client', 'four-clients']:
+            folder=Path(__file__).resolve().parents[1]/'examples/gateway-benchmark'/label
+            manifest=json.loads((folder/'manifest.json').read_text())
+            with (folder/'samples.csv').open() as stream: samples=list(csv.DictReader(stream))
+            with (folder/'summary.csv').open() as stream: summaries=list(csv.DictReader(stream))
+            self.assertEqual(len(samples),manifest['clients']*manifest['pairs_per_client']*2)
+            self.assertFalse(manifest['working_tree_dirty'])
+            for row in summaries:
+                values=[int(sample['round_trip_ns']) for sample in samples if sample['operation']==row['operation']]
+                self.assertEqual(len(values),int(row['samples']))
+                self.assertAlmostEqual(statistics.mean(values),float(row['mean_ns']))
+                for key, fraction in [('p50_ns',.5),('p95_ns',.95),('p99_ns',.99)]:
+                    self.assertEqual(percentile(values,fraction),int(row[key]))
+
     def test_benchmark_keeps_raw_samples_and_excludes_warmup(self):
         import csv
         import json

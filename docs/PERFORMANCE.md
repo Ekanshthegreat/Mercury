@@ -56,3 +56,19 @@ no Linux profile is claimed by the committed local measurements.
 For an in-process baseline, run `./build/benchmarks/bench_submit_latency`.
 Its submit/cancel timings include clock sampling and its original workload;
 compare like workloads rather than subtracting independent benchmark numbers.
+
+## Saved local run
+
+[One-client samples](../examples/gateway-benchmark/one-client/) and
+[four-client samples](../examples/gateway-benchmark/four-clients/) were collected
+on the development Mac (arm64, Release), from the revision in each manifest.
+Each client measured 1,000 pairs after 100 warmup pairs.
+
+| Clients | Requests/s | Submit p50 / p99, µs | Cancel p50 / p99, µs |
+| ---: | ---: | ---: | ---: |
+| 1 | 38,803 | 21.46 / 43.54 | 20.92 / 40.00 |
+| 4 | 59,721 | 61.21 / 150.96 | 61.17 / 147.04 |
+
+These are individual short runs, not a capacity limit or before/after speedup.
+Higher concurrency increases throughput and latency here. The raw samples and
+manifest are retained so the summary can be recomputed.

@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "python": "3.14.6",
+  "clients": 1,
+  "pairs_per_client": 1000,
+  "warmup_pairs_per_client": 100,
+  "server_launched_by_benchmark": true,
+  "tcp_nodelay": true,
+  "measured_seconds": 0.05154175,
+  "requests_per_second": 38803.494254657635,
+  "workload": "closed-loop non-crossing limit submit/cancel pairs; one outstanding request/client",
+  "scope": "client framing, TCP loopback, server poll loop, matching and response parsing; not exchange latency",
+  "revision": "fe730caa44b6dcc7e8ecacd75488e6959e45137a",
+  "working_tree_dirty": false,
+  "binary_sha256": "6157dbfad3b1f2425eee9465113fcb40e37274fc73a927882bb5b81c1bbdc5d1",
+  "build_type": "Release"
+}
