@@ -29,6 +29,10 @@ jobs:
       - run: cmake --build build --parallel 4
       - run: ctest --test-dir build --output-on-failure
       - run: python3 scripts/check_cli.py build
+      - run: python3 scripts/check_gateway.py build
+      - name: Save a small gateway benchmark
+        if: matrix.build_type == 'Release'
+        run: python3 scripts/bench_gateway.py --build build --clients 2 --pairs 100 --out results/gateway-ci
       - name: Reproduce report
         if: matrix.build_type == 'Release'
         run: |
@@ -38,4 +42,6 @@ jobs:
         if: matrix.build_type == 'Release'
         with:
           name: stress-report-${{ matrix.os }}
-          path: results/ci/
+          path: |
+            results/ci/
+            results/gateway-ci/

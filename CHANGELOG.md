@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a single-writer TCP order gateway with framed requests, ownership checks and connection-scoped retries.
+- Add a Python client, socket integration tests and concurrent round-trip benchmarks with raw samples.
+- Document the protocol and Linux profiling workflow; exercise the network path in CI.
+
 - Validate sweep manifests, raw cost accounting and stable seed/policy ordering before aggregating results.
 - Add paired lower/equal/higher cost counts without changing the original reference cost metrics.
 - Verify archived studies offline and checksum their four portable artifacts; exercise verification in CI and fresh-clone reproduction.
