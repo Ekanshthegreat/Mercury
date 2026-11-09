@@ -53,6 +53,7 @@ find_package(Threads REQUIRED)
 # Phase 2 (order book) and Phase 3 (simulation) landed; execution and search
 # sources are appended as their phases land.
 add_library(mercury_engine
+    engine/gateway/session.cpp
     engine/book/order_book.cpp
     engine/simulation/market_simulator.cpp
     engine/execution/execution.cpp
