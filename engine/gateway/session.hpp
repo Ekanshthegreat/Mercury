@@ -1,4 +1,5 @@
 #pragma once
+#include <deque>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -18,6 +19,14 @@ public:
     void disconnect(ParticipantId participant);
     [[nodiscard]] const OrderBook& book() const { return book_; }
 private:
+    struct ReportBuffer {
+        std::deque<std::pair<std::uint64_t, std::string>> rows;
+        std::uint64_t dropped_through{};
+    };
+    void report(ParticipantId participant, const Trade& trade, OrderId order,
+                OrderId counterparty, Side side, bool maker);
+    std::unordered_map<ParticipantId, ReportBuffer> reports_;
+    std::uint64_t report_sequence_{};
     OrderBook book_;
     std::unordered_map<OrderId, ParticipantId> owners_;
     std::uint64_t sequence_{};

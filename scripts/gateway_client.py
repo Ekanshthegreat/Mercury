@@ -45,6 +45,31 @@ class Client:
             raise ValueError('Uncorrelated gateway response')
         return reply
 
+    def reports(self, after=0, limit=8):
+        if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 8:
+            raise ValueError('Use a nonnegative cursor and limit 1–8')
+        reply = self.request(f'REPORTS {after} {limit}')
+        lines = reply.splitlines()
+        header = lines[0].split()
+        if header[3] == 'ERROR': raise ValueError(' '.join(header[4:]))
+        if len(header) != 6 or header[3] != 'REPORTS': raise ValueError('Invalid report envelope')
+        cursor, count = int(header[4]), int(header[5])
+        if count != len(lines)-1 or not 0 <= count <= limit: raise ValueError('Invalid report count')
+        reports = []
+        previous = after
+        for line in lines[1:]:
+            fields = line.split()
+            if len(fields) != 8 or fields[0] != 'FILL' or fields[4] not in ('BUY','SELL') or fields[7] not in ('MAKER','TAKER'):
+                raise ValueError('Invalid execution report')
+            number, order, counterparty = map(int, fields[1:4])
+            price, quantity = map(int, fields[5:7])
+            if number <= previous or min(order, counterparty, price, quantity) <= 0: raise ValueError('Invalid report values')
+            reports.append(dict(sequence=number, order_id=order, counterparty_order_id=counterparty,
+                                side=fields[4], price=price, quantity=quantity, liquidity=fields[7]))
+            previous = number
+        if cursor != previous: raise ValueError('Invalid report cursor')
+        return cursor, reports
+
     def close(self):
         self.socket.close()
 

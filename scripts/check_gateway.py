@@ -62,6 +62,19 @@ class SocketChecks(unittest.TestCase):
             self.assertIn('FILLED 4 0 1', taker.request('MARKET BUY 4'))
             self.assertTrue(maker.request('TOP').endswith('TOP NA 0 101 6'))
 
+    def test_execution_reports_include_both_participants_and_can_be_resumed(self):
+        with server() as port, Client(port) as maker, Client(port) as taker:
+            maker.request('LIMIT SELL 101 10 GTC')
+            taker.request('MARKET BUY 4')
+            cursor, reports = maker.reports()
+            self.assertEqual(reports, [dict(sequence=1, order_id=1, counterparty_order_id=2,
+                side='SELL', price=101, quantity=4, liquidity='MAKER')])
+            self.assertEqual(maker.reports(cursor), (cursor, []))
+            _, reports = taker.reports()
+            self.assertEqual(reports[0]['liquidity'], 'TAKER')
+            self.assertEqual(reports[0]['quantity'], 4)
+            with self.assertRaisesRegex(ValueError, 'FUTURE_CURSOR'): maker.reports(9999)
+
     def test_exact_retry_is_not_a_second_order(self):
         with server() as port, socket.create_connection(('127.0.0.1', port), timeout=3) as stream:
             request = encode('V1 1 LIMIT BUY 99 5 GTC')

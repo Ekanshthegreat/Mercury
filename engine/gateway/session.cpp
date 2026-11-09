@@ -1,6 +1,7 @@
 #include "engine/gateway/session.hpp"
 #include <charconv>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 namespace mercury {
@@ -44,6 +45,27 @@ std::string OrderGateway::process(GatewaySession& session, std::string_view inpu
             (top.bid ? std::to_string(top.bid->quantity) : "0") + " " +
             (top.ask ? std::to_string(top.ask->price) : "NA") + " " +
             (top.ask ? std::to_string(top.ask->quantity) : "0");
+    } else if (kind == "REPORTS" && fields.size() == 5) {
+        std::uint64_t after{}, count{};
+        if (!integer(fields[3], after) || !integer(fields[4], count) || count < 1 || count > 8)
+            reply = prefix + "ERROR BAD_CURSOR";
+        else {
+            const auto& buffer = reports_[session.participant];
+            if (after < buffer.dropped_through) reply = prefix + "ERROR REPORT_GAP " + std::to_string(buffer.dropped_through);
+            else if (after > report_sequence_) reply = prefix + "ERROR FUTURE_CURSOR";
+            else {
+                std::string body;
+                std::uint64_t returned = 0, cursor = after;
+                for (const auto& [number, line] : buffer.rows) {
+                    if (number <= after) continue;
+                    if (returned == count) break;
+                    body += "\n" + line;
+                    cursor = number;
+                    ++returned;
+                }
+                reply = prefix + "REPORTS " + std::to_string(cursor) + " " + std::to_string(returned) + body;
+            }
+        }
     } else if (kind == "CANCEL" && fields.size() == 4) {
         OrderId id{};
         if (!integer(fields[3], id) || id == 0) reply = prefix + "ERROR BAD_ORDER_ID";
@@ -72,8 +94,13 @@ std::string OrderGateway::process(GatewaySession& session, std::string_view inpu
         } else {
             const auto result = limit ? book_.submit_limit(side, price, quantity, session.participant, 0, 0, tif)
                                       : book_.submit_market(side, quantity, session.participant);
-            for (const auto& trade : result.trades)
+            for (const auto& trade : result.trades) {
+                const auto owner = owners_.find(trade.passive);
+                if (owner == owners_.end()) throw std::logic_error("Missing passive owner");
+                report(owner->second, trade, trade.passive, trade.aggressor, opposite(side), true);
+                report(session.participant, trade, trade.aggressor, trade.passive, side, false);
                 if (!book_.find(trade.passive)) owners_.erase(trade.passive);
+            }
             if (result.resting) owners_[result.id] = session.participant;
             reply = prefix + "ACK " + std::to_string(result.id) + " " + status(result.status) + " " +
                 std::to_string(result.filled) + " " + std::to_string(result.resting) + " " +
@@ -86,7 +113,21 @@ std::string OrderGateway::process(GatewaySession& session, std::string_view inpu
     return reply;
 }
 
+void OrderGateway::report(ParticipantId participant, const Trade& trade, OrderId order,
+                          OrderId counterparty, Side side, bool maker) {
+    auto& buffer = reports_[participant];
+    const auto number = ++report_sequence_;
+    buffer.rows.emplace_back(number, "FILL " + std::to_string(number) + " " + std::to_string(order) +
+        " " + std::to_string(counterparty) + " " + (side == Side::Buy ? "BUY" : "SELL") +
+        " " + std::to_string(trade.price) + " " + std::to_string(trade.quantity) + " " + (maker ? "MAKER" : "TAKER"));
+    if (buffer.rows.size() > 1024) {
+        buffer.dropped_through = buffer.rows.front().first;
+        buffer.rows.pop_front();
+    }
+}
+
 void OrderGateway::disconnect(ParticipantId participant) {
+    reports_.erase(participant);
     for (auto it = owners_.begin(); it != owners_.end();) {
         if (it->second == participant) {
             book_.cancel(it->first);

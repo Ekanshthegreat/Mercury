@@ -59,4 +59,25 @@ MERCURY_TEST(gateway_top_carries_request_and_server_sequence) {
     gateway.process(client, "V1 11 LIMIT BUY 99 5 GTC");
     MERCURY_CHECK_EQ(gateway.process(client, "V1 12 TOP"), std::string("V1 12 3 TOP 99 5 NA 0"));
 }
+MERCURY_TEST(gateway_reports_both_legs_and_cursor_reads_do_not_repeat_fills) {
+    OrderGateway gateway;
+    GatewaySession maker{1, 0, {}, {}}, taker{2, 0, {}, {}};
+    gateway.process(maker, "V1 1 LIMIT SELL 101 10 GTC");
+    gateway.process(taker, "V1 1 MARKET BUY 4");
+    const auto maker_report = gateway.process(maker, "V1 2 REPORTS 0 8");
+    MERCURY_CHECK(maker_report.find("REPORTS 1 1\nFILL 1 1 2 SELL 101 4 MAKER") != std::string::npos);
+    const auto taker_report = gateway.process(taker, "V1 2 REPORTS 0 8");
+    MERCURY_CHECK(taker_report.find("FILL 2 2 1 BUY 101 4 TAKER") != std::string::npos);
+    MERCURY_CHECK(gateway.process(maker, "V1 3 REPORTS 1 8").find("REPORTS 1 0") != std::string::npos);
+    MERCURY_CHECK(gateway.process(taker, "V1 3 REPORTS 999 1").find("FUTURE_CURSOR") != std::string::npos);
+}
+MERCURY_TEST(gateway_report_retention_exposes_a_gap_instead_of_silently_skipping) {
+    OrderGateway gateway;
+    GatewaySession maker{1, 0, {}, {}}, taker{2, 0, {}, {}};
+    gateway.process(maker, "V1 1 LIMIT SELL 100 2000 GTC");
+    for (int n=1; n<=1025; ++n) gateway.process(taker, "V1 " + std::to_string(n) + " MARKET BUY 1");
+    MERCURY_CHECK(gateway.process(maker, "V1 2 REPORTS 0 8").find("REPORT_GAP 1") != std::string::npos);
+    MERCURY_CHECK(gateway.process(maker, "V1 3 REPORTS 1 1").find("FILL 3 1 3 SELL 100 1 MAKER") != std::string::npos);
+    MERCURY_CHECK(gateway.process(maker, "V1 4 REPORTS 1 9").find("BAD_CURSOR") != std::string::npos);
+}
 MERCURY_MAIN()
