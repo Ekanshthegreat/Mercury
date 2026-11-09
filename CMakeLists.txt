@@ -81,6 +81,11 @@ endif()
 add_executable(mercury_experiment apps/experiments/main.cpp)
 target_link_libraries(mercury_experiment PRIVATE mercury_engine)
 
+if(UNIX)
+    add_executable(mercury_gateway apps/gateway/main.cpp)
+    target_link_libraries(mercury_gateway PRIVATE mercury_engine)
+endif()
+
 add_executable(mercury_cli apps/cli/main.cpp)
 target_link_libraries(mercury_cli PRIVATE mercury_engine)
 
