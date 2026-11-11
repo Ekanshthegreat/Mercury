@@ -89,7 +89,7 @@ legs; count only TAKER legs when calculating total traded volume.
 ```sh
 ./build/mercury_gateway --port 9090 --journal gateway.wal
 # After stopping the server:
-./build/mercury_gateway --replay gateway.wal > execution-reports.csv
+python3 scripts/export_reports.py gateway.wal execution-reports.csv
 ```
 
 With `--journal`, session opens, commands and closes are appended and fsynced
@@ -98,7 +98,10 @@ original saved benchmarks. The journal has a version header, bounded records,
 a length/complement guard and a noncryptographic FNV-1a payload checksum.
 It is capped at 64 MiB and locked to one writer. Read-only replay requires the
 writer to be stopped; it exports the two participant legs of every recorded fill
-without modifying the file.
+without modifying the file. For an incremental export, pass `--after` with the
+last saved report sequence from the same journal. The exporter creates the
+destination CSV only after successful replay and preserves any existing file.
+The gateway also supports streaming CSV to stdout with `--replay`.
 
 Startup replays validated records, preserves ID allocation, then journals cleanup
 of all previously open sessions. Their remaining orders are cancelled; completed

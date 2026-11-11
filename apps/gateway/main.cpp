@@ -49,30 +49,45 @@ std::uint32_t frame_size(const std::string& bytes) {
 int main(int argc, char** argv) {
     int port = 9090;
     std::string journal, replay_path;
+    std::uint64_t after = 0;
+    bool cursor_set = false;
     for (int n=1; n<argc; ++n) {
         const std::string option = argv[n];
         if (option == "--help") {
-            std::cout << "mercury_gateway [--port 0..65535] [--journal PATH] | --replay PATH\n";
+            std::cout << "mercury_gateway [--port 0..65535] [--journal PATH] | --replay PATH [--after REPORT_SEQUENCE]\n";
             return 0;
         }
         if (++n >= argc) return 2;
         const std::string arg = argv[n];
         if (option == "--journal") journal = arg;
         else if (option == "--replay") replay_path = arg;
-        else if (option == "--port") {
+        else if (option == "--after") {
+            const auto parsed = std::from_chars(arg.data(), arg.data() + arg.size(), after);
+            if (cursor_set || parsed.ec != std::errc{} || parsed.ptr != arg.data() + arg.size()) return 2;
+            cursor_set = true;
+        } else if (option == "--port") {
             const auto parsed = std::from_chars(arg.data(), arg.data()+arg.size(), port);
             if (parsed.ec != std::errc{} || parsed.ptr != arg.data()+arg.size() || port < 0 || port > 65535) return 2;
         } else return 2;
     }
-    if (!replay_path.empty() && !journal.empty()) return 2;
+    if ((!replay_path.empty() && !journal.empty()) || (cursor_set && replay_path.empty())) return 2;
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);
     std::signal(SIGPIPE, SIG_IGN);
     try {
         if (!replay_path.empty()) {
             std::cout << "participant,sequence,order_id,counterparty_order_id,side,price,quantity,liquidity\n";
-            mercury::GatewayService replay(replay_path, true, [](mercury::ParticipantId participant, std::string_view line) {
-                std::string fields(line.substr(5));
+            mercury::GatewayService replay(replay_path, true, [after](mercury::ParticipantId participant, std::string_view line) {
+                const auto fields_view = line.substr(5);
+                std::uint64_t sequence = 0;
+                const auto sequence_end = fields_view.find(' ');
+                if (sequence_end == std::string_view::npos) throw std::logic_error("Missing report fields");
+                const auto end = fields_view.data() + sequence_end;
+                const auto parsed = std::from_chars(fields_view.data(), end, sequence);
+                if (parsed.ec != std::errc{} || parsed.ptr != end)
+                    throw std::logic_error("Invalid report sequence");
+                if (sequence <= after) return;
+                std::string fields(fields_view);
                 for (auto& byte : fields) if (byte == ' ') byte = ',';
                 std::cout << participant << ',' << fields << '\n';
             });

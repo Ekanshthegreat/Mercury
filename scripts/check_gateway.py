@@ -137,6 +137,39 @@ class JournalChecks(unittest.TestCase):
             self.assertEqual(replay2.returncode,0,replay2.stderr)
             self.assertEqual(list(csv.DictReader(io.StringIO(replay2.stdout))),rows)
 
+    def test_csv_export_resumes_after_a_sequence_and_preserves_existing_files(self):
+        import csv
+        import tempfile
+        from export_reports import export
+
+        with tempfile.TemporaryDirectory() as temp:
+            journal = Path(temp) / 'gateway.wal'
+            output = Path(temp) / 'reports.csv'
+            gateway = BUILD / 'mercury_gateway'
+            with server(journal=journal) as port, Client(port) as maker, Client(port) as taker:
+                maker.request('LIMIT SELL 101 10 GTC')
+                taker.request('MARKET BUY 4')
+                with self.assertRaises(subprocess.CalledProcessError):
+                    export(gateway, journal, output)
+                self.assertFalse(output.exists())
+
+            export(gateway, journal, output, after=1)
+            with output.open() as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual([(row['sequence'], row['liquidity']) for row in rows], [('2', 'TAKER')])
+            original = output.read_bytes()
+            with self.assertRaises(FileExistsError):
+                export(gateway, journal, output)
+            self.assertEqual(output.read_bytes(), original)
+
+            damaged = bytearray(journal.read_bytes())
+            damaged[-1] ^= 1
+            journal.write_bytes(damaged)
+            failed = Path(temp) / 'failed.csv'
+            with self.assertRaises(subprocess.CalledProcessError):
+                export(gateway, journal, failed)
+            self.assertFalse(failed.exists())
+
     def test_active_journal_is_locked_and_corruption_fails_closed(self):
         import tempfile
         with tempfile.TemporaryDirectory() as temp:
