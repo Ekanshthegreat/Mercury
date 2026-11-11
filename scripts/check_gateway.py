@@ -170,6 +170,23 @@ class JournalChecks(unittest.TestCase):
                 export(gateway, journal, failed)
             self.assertFalse(failed.exists())
 
+    def test_replay_returns_failure_if_stdout_cannot_be_flushed(self):
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp:
+            journal = Path(temp) / 'gateway.wal'
+            with server(journal=journal):
+                pass
+            read_fd, write_fd = os.pipe()
+            os.close(read_fd)
+            with os.fdopen(write_fd, 'wb') as stream:
+                result = subprocess.run(
+                    [str(BUILD / 'mercury_gateway'), '--replay', str(journal)],
+                    stdout=stream, capture_output=False,
+                )
+            self.assertEqual(result.returncode, 2)
+
     def test_active_journal_is_locked_and_corruption_fails_closed(self):
         import tempfile
         with tempfile.TemporaryDirectory() as temp:

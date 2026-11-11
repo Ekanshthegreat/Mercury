@@ -18,6 +18,7 @@ def export(gateway, journal, output, after=0):
             stdout=stream,
             check=True,
         )
+        os.fsync(stream.fileno())
         os.link(stream.name, output)
 
 

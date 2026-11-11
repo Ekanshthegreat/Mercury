@@ -91,6 +91,7 @@ int main(int argc, char** argv) {
                 for (auto& byte : fields) if (byte == ' ') byte = ',';
                 std::cout << participant << ',' << fields << '\n';
             });
+            std::cout.flush();
             return std::cout.good() ? 0 : 2;
         }
         mercury::GatewayService gateway(journal);
