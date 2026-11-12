@@ -25,7 +25,7 @@ private:
 
 class GatewayService {
 public:
-    using ReportSink = std::function<void(ParticipantId, std::string_view)>;
+    using ReportSink = OrderGateway::ReportSink;
     explicit GatewayService(const std::string& journal_path = {}, bool replay_only = false, ReportSink sink = {});
     ParticipantId open();
     std::string process(ParticipantId participant, std::string_view command);

@@ -77,20 +77,13 @@ int main(int argc, char** argv) {
     try {
         if (!replay_path.empty()) {
             std::cout << "participant,sequence,order_id,counterparty_order_id,side,price,quantity,liquidity\n";
-            mercury::GatewayService replay(replay_path, true, [after](mercury::ParticipantId participant, std::string_view line) {
-                const auto fields_view = line.substr(5);
-                std::uint64_t sequence = 0;
-                const auto sequence_end = fields_view.find(' ');
-                if (sequence_end == std::string_view::npos) throw std::logic_error("Missing report fields");
-                const auto end = fields_view.data() + sequence_end;
-                const auto parsed = std::from_chars(fields_view.data(), end, sequence);
-                if (parsed.ec != std::errc{} || parsed.ptr != end)
-                    throw std::logic_error("Invalid report sequence");
-                if (sequence <= after) return;
-                std::string fields(fields_view);
-                for (auto& byte : fields) if (byte == ' ') byte = ',';
-                std::cout << participant << ',' << fields << '\n';
-            });
+            mercury::GatewayService replay(replay_path, true,
+                [after](mercury::ParticipantId participant, const mercury::ExecutionReport& report) {
+                    if (report.sequence <= after) return;
+                    std::cout << participant << ',';
+                    report.write_fields(std::cout, ',');
+                    std::cout << '\n';
+                });
             std::cout.flush();
             return std::cout.good() ? 0 : 2;
         }

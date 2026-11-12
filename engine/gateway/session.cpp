@@ -54,16 +54,17 @@ std::string OrderGateway::process(GatewaySession& session, std::string_view inpu
             if (after < buffer.dropped_through) reply = prefix + "ERROR REPORT_GAP " + std::to_string(buffer.dropped_through);
             else if (after > report_sequence_) reply = prefix + "ERROR FUTURE_CURSOR";
             else {
-                std::string body;
+                std::ostringstream body;
                 std::uint64_t returned = 0, cursor = after;
-                for (const auto& [number, line] : buffer.rows) {
-                    if (number <= after) continue;
+                for (const auto& report : buffer.rows) {
+                    if (report.sequence <= after) continue;
                     if (returned == count) break;
-                    body += "\n" + line;
-                    cursor = number;
+                    body << "\nFILL ";
+                    report.write_fields(body, ' ');
+                    cursor = report.sequence;
                     ++returned;
                 }
-                reply = prefix + "REPORTS " + std::to_string(cursor) + " " + std::to_string(returned) + body;
+                reply = prefix + "REPORTS " + std::to_string(cursor) + " " + std::to_string(returned) + body.str();
             }
         }
     } else if (kind == "CANCEL" && fields.size() == 4) {
@@ -113,16 +114,20 @@ std::string OrderGateway::process(GatewaySession& session, std::string_view inpu
     return reply;
 }
 
+void ExecutionReport::write_fields(std::ostream& output, char separator) const {
+    output << sequence << separator << order << separator << counterparty << separator
+           << (side == Side::Buy ? "BUY" : "SELL") << separator << price << separator
+           << quantity << separator << (maker ? "MAKER" : "TAKER");
+}
+
 void OrderGateway::report(ParticipantId participant, const Trade& trade, OrderId order,
                           OrderId counterparty, Side side, bool maker) {
     auto& buffer = reports_[participant];
-    const auto number = ++report_sequence_;
-    buffer.rows.emplace_back(number, "FILL " + std::to_string(number) + " " + std::to_string(order) +
-        " " + std::to_string(counterparty) + " " + (side == Side::Buy ? "BUY" : "SELL") +
-        " " + std::to_string(trade.price) + " " + std::to_string(trade.quantity) + " " + (maker ? "MAKER" : "TAKER"));
-    if (report_sink_) report_sink_(participant, buffer.rows.back().second);
+    const ExecutionReport report{++report_sequence_, order, counterparty, side, trade.price, trade.quantity, maker};
+    buffer.rows.push_back(report);
+    if (report_sink_) report_sink_(participant, report);
     if (buffer.rows.size() > 1024) {
-        buffer.dropped_through = buffer.rows.front().first;
+        buffer.dropped_through = buffer.rows.front().sequence;
         buffer.rows.pop_front();
     }
 }
