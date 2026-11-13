@@ -191,13 +191,19 @@ class JournalChecks(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as temp:
             journal=Path(temp)/'gateway.wal'
-            with server(journal=journal) as port, Client(port) as client:
-                client.request('LIMIT BUY 99 1 GTC')
+            with server(journal=journal) as port, Client(port) as maker, Client(port) as taker:
+                maker.request('LIMIT SELL 99 1 GTC')
+                taker.request('MARKET BUY 1')
                 other=subprocess.run([str(BUILD/'mercury_gateway'),'--replay',str(journal)],capture_output=True,text=True)
                 self.assertEqual(other.returncode,2)
                 self.assertIn('already in use',other.stderr)
             damaged=bytearray(journal.read_bytes());damaged[-1] ^= 1;journal.write_bytes(damaged)
             before=journal.read_bytes()
+            replay = subprocess.run([str(BUILD/'mercury_gateway'), '--replay', str(journal)],
+                                    capture_output=True, text=True)
+            self.assertEqual(replay.returncode, 2)
+            self.assertIn('checksum mismatch', replay.stderr)
+            self.assertEqual(len(replay.stdout.splitlines()), 1)
             other=subprocess.run([str(BUILD/'mercury_gateway'),'--journal',str(journal),'--port','0'],capture_output=True,text=True)
             self.assertEqual(other.returncode,2)
             self.assertIn('checksum mismatch',other.stderr)

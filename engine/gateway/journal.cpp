@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 namespace mercury {
 namespace {
@@ -37,7 +38,7 @@ ParticipantId participant(std::string_view value) {
 }
 } // namespace
 
-GatewayJournal::GatewayJournal(const std::string& path, bool read_only) : read_only_(read_only) {
+GatewayJournal::GatewayJournal(const std::string& path, bool read_only, const RecordSink& replay) : read_only_(read_only) {
     fd_ = ::open(path.c_str(), read_only ? O_RDONLY : O_RDWR | O_CREAT, 0600);
     if (fd_ < 0) throw std::runtime_error("Cannot open gateway journal");
     try {
@@ -58,6 +59,7 @@ GatewayJournal::GatewayJournal(const std::string& path, bool read_only) : read_o
             read += static_cast<std::size_t>(count);
         }
         if (!data.starts_with(magic)) throw std::runtime_error("Unsupported gateway journal version");
+        std::vector<std::string_view> records;
         std::size_t offset = magic.size();
         while (offset < data.size()) {
             if (data.size()-offset < 16) break;
@@ -70,7 +72,7 @@ GatewayJournal::GatewayJournal(const std::string& path, bool read_only) : read_o
             if (data.size()-offset-16 < length) break;
             const auto body = std::string_view(data).substr(offset+16, static_cast<std::size_t>(length));
             if (checksum(body) != expected) throw std::runtime_error("Gateway journal checksum mismatch");
-            records_.emplace_back(body);
+            records.push_back(body);
             offset += 16 + static_cast<std::size_t>(length);
         }
         // Only an incomplete final record can be discarded; complete corrupt records fail closed.
@@ -78,6 +80,8 @@ GatewayJournal::GatewayJournal(const std::string& path, bool read_only) : read_o
             throw std::runtime_error("Cannot truncate incomplete journal tail");
         bytes_ = offset;
         if (lseek(fd_, static_cast<off_t>(offset), SEEK_SET) < 0) throw std::runtime_error("Journal seek failed");
+        // The views borrow from data and are consumed only after validation.
+        for (const auto record : records) replay(record);
     } catch (...) { ::close(fd_); fd_ = -1; throw; }
 }
 GatewayJournal::~GatewayJournal() { if (fd_ >= 0) ::close(fd_); }
@@ -97,8 +101,8 @@ void GatewayJournal::append(std::string_view record) {
 
 GatewayService::GatewayService(const std::string& path, bool replay_only, ReportSink sink) : gateway_(std::move(sink)) {
     if (path.empty()) return;
-    journal_ = std::make_unique<GatewayJournal>(path, replay_only);
-    for (const auto& record : journal_->records()) replay(record);
+    journal_ = std::make_unique<GatewayJournal>(path, replay_only,
+        [this](std::string_view record) { replay(record); });
     if (!replay_only) {
         std::vector<ParticipantId> orphans;
         for (const auto& [id, session] : sessions_) { (void)session; orphans.push_back(id); }
