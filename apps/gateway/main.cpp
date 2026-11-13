@@ -13,6 +13,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -39,7 +40,7 @@ std::string frame(const std::string& payload) {
     const auto size = htonl(static_cast<std::uint32_t>(payload.size()));
     return std::string(reinterpret_cast<const char*>(&size), 4) + payload;
 }
-std::uint32_t frame_size(const std::string& bytes) {
+std::uint32_t frame_size(std::string_view bytes) {
     std::uint32_t size{};
     std::memcpy(&size, bytes.data(), 4);
     return ntohl(size);
@@ -114,13 +115,15 @@ int main(int argc, char** argv) {
             for (std::size_t i = 0; i < clients.size();) {
                 auto& client = clients[i];
                 bool invalid = false;
-                for (int budget = 0; budget < 8 && client.input.size() >= 4; ++budget) {
-                    const auto size = frame_size(client.input);
+                std::string_view pending(client.input);
+                for (int budget = 0; budget < 8 && pending.size() >= 4; ++budget) {
+                    const auto size = frame_size(pending);
                     if (size == 0 || size > 256) { invalid = true; break; }
-                    if (client.input.size() < 4 + size || client.output.size() >= 32768) break;
-                    client.output += frame(gateway.process(client.participant, std::string_view(client.input).substr(4, size)));
-                    client.input.erase(0, 4 + size);
+                    if (pending.size() < 4 + size || client.output.size() >= 32768) break;
+                    client.output += frame(gateway.process(client.participant, pending.substr(4, size)));
+                    pending.remove_prefix(4 + size);
                 }
+                client.input.erase(0, client.input.size() - pending.size());
                 if (invalid) remove(i); else ++i;
             }
             std::vector<pollfd> polls{{listener.value, POLLIN, 0}};
@@ -129,8 +132,11 @@ int main(int argc, char** argv) {
                 short events = client.input.size() < 8192 && client.output.size() < 32768 ? POLLIN : 0;
                 if (!client.output.empty()) events = static_cast<short>(events | POLLOUT);
                 polls.push_back({client.fd, events, 0});
-                if (client.input.size() >= 4 && client.input.size() >= 4 + frame_size(client.input) &&
-                    client.output.size() < 32768) buffered = true;
+                if (client.input.size() >= 4) {
+                    const auto size = frame_size(client.input);
+                    if (size == 0 || size > 256 ||
+                        (client.input.size() >= 4 + size && client.output.size() < 32768)) buffered = true;
+                }
             }
             const int ready = ::poll(polls.data(), static_cast<nfds_t>(polls.size()), buffered ? 0 : 100);
             if (ready < 0) {

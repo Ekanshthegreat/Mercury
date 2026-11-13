@@ -54,9 +54,12 @@ class SocketChecks(unittest.TestCase):
 
     def test_many_buffered_commands_are_drained_without_more_input(self):
         with server() as port, socket.create_connection(('127.0.0.1', port), timeout=3) as stream:
-            stream.sendall(b''.join(encode(f'V1 {n} TOP') for n in range(1, 41)))
+            tail = encode('V1 41 TOP')
+            stream.sendall(b''.join(encode(f'V1 {n} TOP') for n in range(1, 41)) + tail[:5])
             for n in range(1, 41):
                 self.assertEqual(receive(stream), f'V1 {n} {n} TOP NA 0 NA 0')
+            stream.sendall(tail[5:])
+            self.assertEqual(receive(stream), 'V1 41 41 TOP NA 0 NA 0')
 
     def test_clients_share_one_book_and_cannot_cancel_each_others_orders(self):
         with server() as port, Client(port) as maker, Client(port) as taker:
