@@ -101,4 +101,37 @@ MERCURY_TEST(paired_bootstrap_rejects_invalid_or_unpaired_samples) {
     MERCURY_CHECK_THROWS(bootstrap_paired_mean({1, 2}, {1, 2}, 1, 5001));
     MERCURY_CHECK_THROWS(bootstrap_paired_mean(std::vector<double>(10000, 1), std::vector<double>(10000, 1), 1, 5000));
 }
+MERCURY_TEST(tail_bootstrap_matches_a_full_sort_reference) {
+    for (const std::size_t count : {2U, 19U, 20U, 21U, 41U, 127U}) {
+        std::vector<double> values;
+        for (std::size_t i = 0; i < count; ++i)
+            values.push_back(static_cast<double>((i * 37) % 23) - 11.0);
+        const auto original = values;
+        auto population = values;
+        std::sort(population.begin(), population.end());
+        for (const std::uint64_t seed : {1U, 7U, 99U}) {
+            Rng rng(seed);
+            std::vector<double> reference;
+            for (int draw = 0; draw < 80; ++draw) {
+                std::vector<double> sample;
+                for (std::size_t i = 0; i < count; ++i)
+                    sample.push_back(population[static_cast<std::size_t>(rng.uniform_u64(count))]);
+                std::sort(sample.begin(), sample.end());
+                const double mass = static_cast<double>(count) * 0.05;
+                double left = mass, tail = 0;
+                for (auto item = sample.rbegin(); item != sample.rend() && left > 0; ++item) {
+                    const double weight = std::min(left, 1.0);
+                    tail += *item * weight / mass;
+                    left -= weight;
+                }
+                reference.push_back(tail);
+            }
+            std::sort(reference.begin(), reference.end());
+            const auto interval = bootstrap_cvar95(values, seed, 80);
+            MERCURY_CHECK_EQ(interval.lower, reference[1]);
+            MERCURY_CHECK_EQ(interval.upper, reference[77]);
+            MERCURY_CHECK(values == original);
+        }
+    }
+}
 MERCURY_MAIN()

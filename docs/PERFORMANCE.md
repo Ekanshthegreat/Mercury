@@ -84,3 +84,12 @@ samples. The manifest records `durable_journal`. Use smaller runs within the
 64 MiB journal limit; oversized configured workloads are rejected up front.
 The original saved measurements used the volatile path, so they are not latency
 claims for journaled execution. Compare runs with the same durability mode.
+
+## Bootstrap calculations
+
+`bootstrap_cvar95` allocates its population, sample and estimate buffers once.
+Each draw overwrites and sorts the sample in place, then calculates the tail
+mean. It avoids a sample-vector copy and the unrelated mean/standard-error work
+inside each draw. Sorting still costs O(n log n) per draw. The experiment tests
+compare the intervals with a separate full-sort reference, including fractional
+tail boundaries, repeated values and negative costs.
